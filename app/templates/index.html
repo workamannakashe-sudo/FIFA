@@ -1,0 +1,1416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SafePass 2026: Mission-Critical Stadium Intelligence & Fan Experience Platform</title>
+    <meta name="description" content="Real-time stadium crowd intelligence, AI-powered emergency response, and multilingual fan assistance for FIFA World Cup 2026.">
+    <!-- Modern Premium Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-base: #080C14;
+            --bg-surface: rgba(13, 19, 33, 0.85);
+            --bg-card: rgba(22, 31, 51, 0.7);
+            --bg-card-hover: rgba(31, 43, 68, 0.8);
+            --border-color: rgba(255, 255, 255, 0.07);
+            --border-active: rgba(99, 102, 241, 0.4);
+            
+            --text-primary: #F0F2F8;
+            --text-secondary: #8B92A8;
+            --text-muted: #5B6478;
+            
+            --accent-primary: #6366F1;
+            --accent-secondary: #8B5CF6;
+            --accent-glow: rgba(99, 102, 241, 0.18);
+            --accent-gold: #F59E0B;
+            
+            --status-safe: #10B981;
+            --status-warning: #F59E0B;
+            --status-danger: #EF4444;
+            --status-blocked: #7C3AED;
+            --status-crush: #FF4D4D;
+            
+            --font-title: 'Outfit', sans-serif;
+            --font-body: 'Plus Jakarta Sans', sans-serif;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --shadow-glow: 0 0 30px rgba(99, 102, 241, 0.12);
+        }
+
+        /* ─── HIGH CONTRAST OVERRIDE ─────────────────────────────── */
+        body.high-contrast {
+            --bg-base: #000000; --bg-surface: #0A0A0A; --bg-card: #111111;
+            --border-color: #FFFFFF; --text-primary: #FFFFFF; --text-secondary: #DDDDDD;
+            --text-muted: #AAAAAA; --accent-primary: #FFFF00; --accent-glow: rgba(255,255,0,0.2);
+            --status-safe: #00FF00; --status-warning: #FFA500;
+            --status-danger: #FF0000; --status-blocked: #FF00FF;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-primary);
+            font-family: var(--font-body);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            background-image:
+                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.08) 0px, transparent 60%),
+                radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.06) 0px, transparent 60%),
+                radial-gradient(at 50% 50%, rgba(16, 185, 129, 0.03) 0px, transparent 70%);
+            background-attachment: fixed;
+        }
+
+        /* ─── HEADER ───────────────────────────────────────────────── */
+        header {
+            background: rgba(8, 12, 20, 0.9);
+            backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky; top: 0; z-index: 200;
+        }
+        .header-brand { display: flex; align-items: center; gap: 0.85rem; }
+        .header-brand h1 {
+            font-family: var(--font-title); font-size: 1.5rem; font-weight: 800;
+            background: linear-gradient(135deg, #F0F2F8 0%, #6366F1 60%, #8B5CF6 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+        .header-sub { font-size: 0.68rem; color: var(--text-muted); margin-top: -2px; }
+        .header-controls { display: flex; align-items: center; gap: 0.75rem; }
+        .badge-live {
+            background: rgba(16, 185, 129, 0.12);
+            border: 1px solid var(--status-safe);
+            color: var(--status-safe);
+            padding: 0.3rem 0.75rem; border-radius: 9999px;
+            font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px;
+            display: flex; align-items: center; gap: 0.4rem;
+        }
+        .badge-live::before {
+            content: ''; display: inline-block; width: 6px; height: 6px;
+            background: var(--status-safe); border-radius: 50%;
+            animation: pulse-dot 1.5s ease-in-out infinite;
+        }
+
+        /* ─── CRUSH ALERT BANNER ─────────────────────────────────── */
+        #crush-alert-banner {
+            display: none; width: 100%;
+            background: linear-gradient(90deg, rgba(255,77,77,0.15), rgba(239,68,68,0.08));
+            border-bottom: 1px solid rgba(255, 77, 77, 0.4);
+            padding: 0.6rem 2rem;
+            animation: flashRed 1.5s ease-in-out infinite;
+        }
+        #crush-alert-banner.show { display: flex; align-items: center; justify-content: space-between; }
+        #crush-alert-banner .crush-text { font-weight: 700; font-size: 0.85rem; color: var(--status-crush); }
+        #crush-alert-banner .crush-dismiss { cursor: pointer; color: var(--text-muted); font-size: 0.8rem; }
+        @keyframes flashRed { 0%,100% { border-bottom-color: rgba(255,77,77,0.4); } 50% { border-bottom-color: rgba(255,77,77,0.9); } }
+
+        /* ─── EMERGENCY ALERT TOAST ──────────────────────────────── */
+        #emergency-toast {
+            display: none; position: fixed; top: 80px; right: 1.5rem;
+            z-index: 9999; max-width: 380px; width: 100%;
+            background: var(--bg-surface); border: 1px solid;
+            border-radius: 14px; padding: 1rem 1.25rem;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            animation: slideIn 0.3s ease;
+        }
+        #emergency-toast.show { display: block; }
+        #emergency-toast.level-1 { border-color: rgba(99,102,241,0.5); }
+        #emergency-toast.level-2 { border-color: rgba(245,158,11,0.6); }
+        #emergency-toast.level-3 { border-color: rgba(239,68,68,0.8); animation: slideIn 0.3s ease, flashRed 1s infinite; }
+        .toast-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+        .toast-level-badge { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; padding: 0.2rem 0.5rem; border-radius: 4px; }
+        .toast-close { cursor: pointer; color: var(--text-muted); font-size: 1rem; }
+        .toast-message { font-size: 0.88rem; line-height: 1.5; }
+        .toast-zone { font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.4rem; }
+        @keyframes slideIn { from { transform: translateX(110%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+        /* ─── KPI STATS BAR ─────────────────────────────────────── */
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem; padding: 1.25rem 2rem;
+        }
+        .stat-card {
+            background: var(--bg-surface); backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color); border-radius: 14px;
+            padding: 1.1rem 1.25rem; display: flex; align-items: center;
+            justify-content: space-between; transition: var(--transition);
+            cursor: default;
+        }
+        .stat-card:hover { transform: translateY(-2px); border-color: var(--border-active); box-shadow: var(--shadow-glow); }
+        .stat-card.crush-card { border-color: rgba(255,77,77,0.3); background: rgba(255,77,77,0.05); }
+        .stat-info h3 { font-size: 0.75rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 0.2rem; }
+        .stat-info p { font-family: var(--font-title); font-size: 1.7rem; font-weight: 700; line-height: 1; }
+        .stat-icon { font-size: 2rem; opacity: 0.85; }
+
+        /* ─── MAIN GRID ──────────────────────────────────────────── */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 300px 1fr 360px;
+            gap: 1.25rem;
+            padding: 0 1.5rem 1.5rem;
+            flex-grow: 1;
+            min-height: 0;
+        }
+
+        .panel {
+            background: var(--bg-surface); backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color); border-radius: 18px;
+            padding: 1.25rem; display: flex; flex-direction: column; gap: 1.1rem;
+            height: calc(100vh - 220px); overflow-y: auto;
+        }
+        .panel::-webkit-scrollbar { width: 5px; }
+        .panel::-webkit-scrollbar-track { background: transparent; }
+        .panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
+        .panel-title {
+            font-family: var(--font-title); font-size: 1.05rem; font-weight: 700;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.65rem;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .panel-title-icon { font-size: 1rem; }
+
+        /* ─── CARDS ──────────────────────────────────────────────── */
+        .card {
+            background: var(--bg-card); border: 1px solid var(--border-color);
+            border-radius: 12px; padding: 1rem;
+            transition: var(--transition);
+        }
+        .card:hover { border-color: rgba(255,255,255,0.1); }
+        .card-header { font-weight: 700; font-size: 0.88rem; margin-bottom: 0.7rem; display: flex; align-items: center; gap: 0.4rem; }
+
+        /* ─── BUTTONS ────────────────────────────────────────────── */
+        .btn {
+            background: rgba(255,255,255,0.04); border: 1px solid var(--border-color);
+            color: var(--text-primary); padding: 0.7rem 1rem; border-radius: 10px;
+            cursor: pointer; font-family: var(--font-body); font-size: 0.88rem; font-weight: 600;
+            text-align: left; transition: var(--transition);
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .btn:hover { background: rgba(255,255,255,0.09); border-color: var(--accent-primary); }
+        .btn.active { background: var(--accent-primary); border-color: var(--accent-primary); box-shadow: 0 4px 16px var(--accent-glow); }
+        .btn.danger { background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.4); color: #FCA5A5; }
+        .btn.danger:hover { background: rgba(239,68,68,0.2); }
+        .btn-sm {
+            background: var(--accent-primary); color: #fff; border: none;
+            padding: 0.45rem 0.9rem; border-radius: 7px; cursor: pointer;
+            font-family: var(--font-body); font-size: 0.8rem; font-weight: 700;
+            transition: var(--transition); display: inline-flex; align-items: center; gap: 0.35rem;
+        }
+        .btn-sm:hover { opacity: 0.88; transform: scale(1.02); }
+        .btn-sm:disabled { background: var(--text-muted); cursor: not-allowed; transform: none; }
+        .btn-sm.danger { background: var(--status-danger); }
+        .btn-sm.warn { background: var(--status-warning); color: #000; }
+        .btn-sm.safe { background: var(--status-safe); }
+
+        /* ─── FORM INPUTS ────────────────────────────────────────── */
+        .form-group { margin-bottom: 0.6rem; }
+        .form-group label { display: block; font-size: 0.72rem; color: var(--text-secondary); margin-bottom: 0.2rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
+        .form-input, .select-input {
+            width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color);
+            color: var(--text-primary); padding: 0.5rem 0.65rem; border-radius: 8px;
+            font-family: var(--font-body); font-size: 0.85rem; outline: none; transition: var(--transition);
+        }
+        .form-input:focus, .select-input:focus { border-color: var(--accent-primary); background: rgba(99,102,241,0.06); }
+        textarea.form-input { resize: vertical; min-height: 60px; }
+        .form-btn {
+            background: var(--status-safe); color: #fff; font-weight: 700; border: none;
+            width: 100%; padding: 0.6rem; border-radius: 8px; cursor: pointer;
+            transition: var(--transition); font-size: 0.85rem; font-family: var(--font-body);
+        }
+        .form-btn:hover { opacity: 0.9; }
+
+        /* ─── TOGGLES ────────────────────────────────────────────── */
+        .toggle-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem; font-size: 0.88rem; }
+        .switch { position: relative; display: inline-block; width: 42px; height: 22px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; inset: 0; background: rgba(255,255,255,0.12); transition: .3s; border-radius: 22px; }
+        .slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 4px; bottom: 4px; background: white; transition: .3s; border-radius: 50%; }
+        input:checked + .slider { background: var(--accent-primary); }
+        input:checked + .slider:before { transform: translateX(20px); }
+
+        /* ─── CANVAS ARENA ───────────────────────────────────────── */
+        .arena-container {
+            position: relative; background: var(--bg-surface); backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color); border-radius: 18px;
+            display: flex; flex-direction: column; overflow: hidden;
+            height: calc(100vh - 220px);
+        }
+        canvas { width: 100%; height: 100%; cursor: crosshair; }
+        .canvas-overlay {
+            position: absolute; bottom: 1rem; left: 1rem;
+            background: rgba(8,12,20,0.88); padding: 0.7rem 0.9rem;
+            border-radius: 10px; border: 1px solid var(--border-color);
+            pointer-events: none; font-size: 0.77rem;
+            display: flex; flex-direction: column; gap: 0.3rem;
+        }
+        .overlay-item { display: flex; align-items: center; gap: 0.45rem; }
+        .color-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
+        /* ─── LOW BANDWIDTH VIEW ─────────────────────────────────── */
+        .low-bandwidth-view {
+            display: none; background: var(--bg-surface); padding: 1.5rem;
+            border-radius: 18px; border: 1px solid var(--border-color);
+            height: calc(100vh - 220px); overflow-y: auto;
+            flex-direction: column; gap: 1.25rem;
+        }
+        body.low-bandwidth .arena-container { display: none !important; }
+        body.low-bandwidth .low-bandwidth-view { display: flex !important; }
+        .text-route-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+        .text-route-table th, .text-route-table td { border: 1px solid var(--border-color); padding: 0.65rem; text-align: left; }
+        .text-route-table th { background: var(--bg-card); font-weight: 700; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.3px; }
+
+        /* ─── ANNOUNCEMENT BOX ───────────────────────────────────── */
+        .announcement-box {
+            background: rgba(99,102,241,0.07); border: 1px solid rgba(99,102,241,0.25);
+            border-radius: 12px; padding: 1rem; display: flex; flex-direction: column; gap: 0.7rem;
+        }
+        .announcement-text { font-size: 0.88rem; line-height: 1.5; font-style: italic; }
+        .audio-btn {
+            background: var(--accent-primary); color: #fff; border: none; border-radius: 8px;
+            padding: 0.5rem 1rem; cursor: pointer; font-weight: 700; font-size: 0.83rem;
+            display: flex; align-items: center; justify-content: center; gap: 0.4rem;
+            transition: var(--transition);
+        }
+        .audio-btn:hover { opacity: 0.88; transform: scale(1.01); }
+        .audio-btn:disabled { background: var(--text-muted); cursor: not-allowed; transform: none; }
+
+        /* ─── BOTTLENECK LIST ────────────────────────────────────── */
+        .bottleneck-list { display: flex; flex-direction: column; gap: 0.4rem; max-height: 130px; overflow-y: auto; }
+        .bottleneck-item {
+            display: flex; align-items: center; justify-content: space-between;
+            font-size: 0.77rem; background: rgba(239,68,68,0.07);
+            border: 1px solid rgba(239,68,68,0.2); padding: 0.45rem 0.6rem; border-radius: 7px;
+        }
+        .bottleneck-item.blocked { background: rgba(124,58,237,0.07); border-color: rgba(124,58,237,0.2); }
+
+        /* ─── CRUSH RISK PANEL ───────────────────────────────────── */
+        .crush-risk-panel { border: 1px solid rgba(255,77,77,0.2); border-radius: 12px; padding: 0.9rem; background: rgba(255,77,77,0.04); }
+        .crush-level-badge {
+            display: inline-block; padding: 0.2rem 0.6rem; border-radius: 6px;
+            font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .crush-level-badge.LOW { background: rgba(16,185,129,0.15); color: var(--status-safe); }
+        .crush-level-badge.MODERATE { background: rgba(245,158,11,0.15); color: var(--status-warning); }
+        .crush-level-badge.CRITICAL { background: rgba(239,68,68,0.15); color: var(--status-danger); animation: flashRed 1s infinite; }
+        .crush-zone-list { display: flex; flex-direction: column; gap: 0.35rem; margin-top: 0.6rem; max-height: 100px; overflow-y: auto; }
+        .crush-zone-item { font-size: 0.75rem; background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.15); padding: 0.35rem 0.5rem; border-radius: 6px; }
+
+        /* ─── TRIAGE RESULT ──────────────────────────────────────── */
+        .triage-result {
+            display: none; margin-top: 0.75rem; padding: 0.85rem; border-radius: 10px;
+            background: var(--bg-card); border: 1px solid var(--border-color);
+            font-size: 0.82rem;
+        }
+        .triage-result.show { display: block; }
+        .triage-category { font-size: 0.95rem; font-weight: 800; margin-bottom: 0.35rem; }
+        .severity-bar { display: flex; gap: 4px; margin: 0.4rem 0; }
+        .severity-pip { width: 18px; height: 8px; border-radius: 3px; background: var(--border-color); }
+        .severity-pip.active { background: var(--status-danger); }
+        .severity-pip.active.s3 { background: var(--status-warning); }
+        .severity-pip.active.s2 { background: var(--accent-gold); }
+        .severity-pip.active.s1 { background: var(--status-safe); }
+        .triage-action { font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.4rem; line-height: 1.4; }
+
+        /* ─── ALERT COMMAND ──────────────────────────────────────── */
+        .alert-level-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.4rem; margin-bottom: 0.6rem; }
+        .alert-level-btn {
+            text-align: center; padding: 0.45rem 0.25rem; border-radius: 8px;
+            border: 1px solid var(--border-color); cursor: pointer;
+            font-size: 0.75rem; font-weight: 700; transition: var(--transition);
+            background: rgba(255,255,255,0.03);
+        }
+        .alert-level-btn:hover { border-color: var(--accent-primary); }
+        .alert-level-btn.selected-l1 { background: rgba(99,102,241,0.15); border-color: var(--accent-primary); color: #818CF8; }
+        .alert-level-btn.selected-l2 { background: rgba(245,158,11,0.15); border-color: var(--status-warning); color: var(--status-warning); }
+        .alert-level-btn.selected-l3 { background: rgba(239,68,68,0.15); border-color: var(--status-danger); color: var(--status-danger); }
+        .alert-history { max-height: 120px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.35rem; }
+        .alert-history-item { font-size: 0.75rem; padding: 0.35rem 0.5rem; border-radius: 6px; background: var(--bg-card); border: 1px solid var(--border-color); }
+
+        /* ─── AUDIT TRAIL ────────────────────────────────────────── */
+        .audit-list { display: flex; flex-direction: column; gap: 0.35rem; max-height: 160px; overflow-y: auto; }
+        .audit-item { font-size: 0.73rem; padding: 0.4rem 0.55rem; border-radius: 7px; background: var(--bg-card); border: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; }
+        .audit-hash { font-family: monospace; font-size: 0.65rem; color: var(--text-muted); flex-shrink: 0; }
+        .audit-event { font-weight: 600; color: var(--text-secondary); }
+        .audit-verify-badge { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.72rem; font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 5px; }
+        .audit-verify-badge.valid { background: rgba(16,185,129,0.12); color: var(--status-safe); }
+        .audit-verify-badge.invalid { background: rgba(239,68,68,0.12); color: var(--status-danger); }
+
+        /* ─── SANDBOX ────────────────────────────────────────────── */
+        .sandbox-controls { display: flex; flex-direction: column; gap: 0.45rem; font-size: 0.82rem; }
+        .sandbox-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+        .sandbox-slider { flex-grow: 1; accent-color: var(--accent-primary); }
+
+        /* ─── REGISTRATION FORM ──────────────────────────────────── */
+        #registration-result { display: none; margin-top: 0.75rem; font-size: 0.77rem; border-top: 1px solid var(--border-color); padding-top: 0.5rem; flex-direction: column; gap: 0.2rem; }
+
+        /* ─── CHATBOT WIDGET ─────────────────────────────────────── */
+        #chatbot-bubble {
+            position: fixed; bottom: 2rem; right: 2rem; z-index: 9000;
+            width: 54px; height: 54px; border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            border: none; cursor: pointer; display: flex; align-items: center; justify-content: center;
+            font-size: 1.5rem; box-shadow: 0 4px 20px rgba(99,102,241,0.4);
+            transition: var(--transition);
+        }
+        #chatbot-bubble:hover { transform: scale(1.08); box-shadow: 0 8px 30px rgba(99,102,241,0.55); }
+        #chatbot-panel {
+            display: none; position: fixed; bottom: 6rem; right: 2rem; z-index: 8999;
+            width: 340px; height: 500px;
+            background: var(--bg-surface); backdrop-filter: blur(20px);
+            border: 1px solid var(--border-active); border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5), var(--shadow-glow);
+            display: none; flex-direction: column; overflow: hidden;
+        }
+        #chatbot-panel.open { display: flex; }
+        .chatbot-header {
+            background: linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.15));
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 1.25rem; display: flex; justify-content: space-between; align-items: center;
+        }
+        .chatbot-title { font-family: var(--font-title); font-weight: 700; font-size: 0.95rem; }
+        .chatbot-subtitle { font-size: 0.7rem; color: var(--text-secondary); margin-top: 1px; }
+        .chatbot-close { cursor: pointer; color: var(--text-muted); font-size: 1.1rem; }
+        .chatbot-messages {
+            flex-grow: 1; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.65rem;
+        }
+        .chatbot-messages::-webkit-scrollbar { width: 4px; }
+        .chatbot-messages::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+        .chat-msg {
+            max-width: 88%; padding: 0.6rem 0.85rem; border-radius: 14px;
+            font-size: 0.84rem; line-height: 1.5;
+        }
+        .chat-msg.bot { background: var(--bg-card); border: 1px solid var(--border-color); align-self: flex-start; border-bottom-left-radius: 4px; }
+        .chat-msg.user { background: var(--accent-primary); align-self: flex-end; border-bottom-right-radius: 4px; }
+        .chat-msg.thinking { opacity: 0.6; font-style: italic; }
+        .chatbot-input-row {
+            padding: 0.75rem 1rem; border-top: 1px solid var(--border-color);
+            display: flex; gap: 0.5rem; align-items: center;
+        }
+        .chatbot-input {
+            flex-grow: 1; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color);
+            color: var(--text-primary); padding: 0.5rem 0.75rem; border-radius: 10px;
+            font-family: var(--font-body); font-size: 0.84rem; outline: none; transition: var(--transition);
+        }
+        .chatbot-input:focus { border-color: var(--accent-primary); }
+        .chatbot-send { background: var(--accent-primary); border: none; border-radius: 10px; width: 36px; height: 36px; cursor: pointer; color: #fff; font-size: 1rem; display: flex; align-items: center; justify-content: center; transition: var(--transition); }
+        .chatbot-send:hover { opacity: 0.88; }
+
+        /* ─── PILLS & BADGES ─────────────────────────────────────── */
+        .pill { display: inline-block; padding: 0.18rem 0.5rem; border-radius: 6px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; }
+        .pill.safe { background: rgba(16,185,129,0.15); color: var(--status-safe); }
+        .pill.warning { background: rgba(245,158,11,0.15); color: var(--status-warning); }
+        .pill.danger { background: rgba(239,68,68,0.15); color: var(--status-danger); }
+        .pill.blocked { background: rgba(124,58,237,0.15); color: var(--status-blocked); }
+
+        /* ─── ANIMATIONS ─────────────────────────────────────────── */
+        @keyframes pulse-dot { 0%,100% { transform: scale(0.9); opacity: 0.6; } 50% { transform: scale(1.15); opacity: 1; } }
+        @keyframes pulse { 0%,100% { transform: scale(0.95); opacity: 0.5; } 50% { transform: scale(1.1); opacity: 1; } }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* ─── SCROLLBAR ──────────────────────────────────────────── */
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
+
+        /* ─── RESPONSIVE ─────────────────────────────────────────── */
+        @media(max-width: 1200px) {
+            .dashboard-grid { grid-template-columns: 1fr; }
+            .panel, .arena-container, .low-bandwidth-view { height: auto; }
+            .arena-container { height: 500px; }
+            #chatbot-panel { width: calc(100vw - 2rem); right: 1rem; bottom: 5.5rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ═══════════════════ HEADER ═══════════════════ -->
+    <header>
+        <div class="header-brand">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none">
+                <path d="M12 2L2 22H22L12 2Z" stroke="#6366F1" stroke-width="2" stroke-linejoin="round"/>
+                <path d="M12 9V15" stroke="#6366F1" stroke-width="2" stroke-linecap="round"/>
+                <path d="M12 18H12.01" stroke="#6366F1" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            <div>
+                <h1>SafePass 2026</h1>
+                <div class="header-sub">Stadium Intelligence & Fan Experience Platform · FIFA World Cup 2026</div>
+            </div>
+        </div>
+        <div class="header-controls">
+            <div id="ws-badge" class="badge-live">Telemetry Connected</div>
+        </div>
+    </header>
+
+    <!-- ═══════════════════ CRUSH ALERT BANNER ═══════════════════ -->
+    <div id="crush-alert-banner">
+        <span class="crush-text" id="crush-banner-text">🚨 CRUSH RISK ALERT: Dangerous crowd density detected. Immediate action required.</span>
+        <span class="crush-dismiss" onclick="this.parentElement.classList.remove('show')">✕ Dismiss</span>
+    </div>
+
+    <!-- ═══════════════════ EMERGENCY TOAST ═══════════════════ -->
+    <div id="emergency-toast">
+        <div class="toast-header">
+            <span id="toast-level-badge" class="toast-level-badge">Level 1 — Alert</span>
+            <span class="toast-close" onclick="closeToast()">✕</span>
+        </div>
+        <div id="toast-message" class="toast-message">Alert message here.</div>
+        <div id="toast-zone" class="toast-zone">Zone: Unknown</div>
+    </div>
+
+    <!-- ═══════════════════ KPI STATS BAR ═══════════════════ -->
+    <div class="stats-bar">
+        <div class="stat-card">
+            <div class="stat-info">
+                <h3>System Latency</h3>
+                <p id="latency-val" style="color: var(--status-safe);">&lt; 10ms</p>
+            </div>
+            <div class="stat-icon" style="color: var(--status-safe);">⚡</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-info">
+                <h3>Congestion Risk</h3>
+                <p id="risk-val" style="color: var(--status-safe);">Normal</p>
+            </div>
+            <div class="stat-icon" id="risk-icon">💚</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-info">
+                <h3>Active Bottlenecks</h3>
+                <p id="bottlenecks-count">0</p>
+            </div>
+            <div class="stat-icon" style="color: var(--status-warning);">⚠️</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-info">
+                <h3>Avg Evac Time</h3>
+                <p id="avg-time-val" style="color: var(--accent-primary);">--</p>
+            </div>
+            <div class="stat-icon" style="color: var(--accent-primary);">⏱️</div>
+        </div>
+        <div class="stat-card crush-card" id="crush-stat-card" style="cursor:pointer;" onclick="fetchCrushRisk()">
+            <div class="stat-info">
+                <h3>Crush Risk</h3>
+                <p id="crush-val" style="color: var(--status-safe);">LOW</p>
+            </div>
+            <div class="stat-icon" id="crush-icon">🟢</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-info">
+                <h3>Audit Events</h3>
+                <p id="audit-count" style="color: var(--text-secondary);">0</p>
+            </div>
+            <div class="stat-icon" style="color: var(--text-secondary);">🔐</div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════ MAIN DASHBOARD GRID ═══════════════════ -->
+    <div class="dashboard-grid">
+
+        <!-- ════ LEFT PANEL ════ -->
+        <div class="panel">
+            <!-- Demo Scenarios -->
+            <div>
+                <div class="panel-title">
+                    <span>🎬 Demo Scenarios</span>
+                </div>
+                <div style="font-size:0.78rem; color:var(--text-secondary); margin-bottom:0.65rem;">
+                    Inject preloaded high-density crowd states to test routing engine reactions.
+                </div>
+                <div style="display:flex; flex-direction:column; gap:0.6rem;">
+                    <button id="btn-normal" class="btn active" onclick="loadScenario('normal')">
+                        <span>🟢 Normal Flow</span>
+                        <span style="font-size:0.7rem; opacity:0.75;">Post-Match</span>
+                    </button>
+                    <button id="btn-bottleneck" class="btn" onclick="loadScenario('bottleneck')">
+                        <span>🟡 Gate B Bottleneck</span>
+                        <span style="font-size:0.7rem; color:var(--status-warning);">Scanner Fail</span>
+                    </button>
+                    <button id="btn-emergency" class="btn" onclick="loadScenario('emergency')">
+                        <span>🔴 Zone E Hazard</span>
+                        <span style="font-size:0.7rem; color:var(--status-danger);">Fire Alert</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Accessibility Card -->
+            <div class="card">
+                <div class="card-header">♿ Accessibility & Multi-Modal</div>
+                <div class="toggle-row">
+                    <span>High Contrast UI</span>
+                    <label class="switch"><input type="checkbox" id="contrast-toggle" onchange="toggleHighContrast()"><span class="slider"></span></label>
+                </div>
+                <div class="toggle-row">
+                    <span>Low Bandwidth Mode</span>
+                    <label class="switch"><input type="checkbox" id="bandwidth-toggle" onchange="toggleLowBandwidth()"><span class="slider"></span></label>
+                </div>
+                <div style="margin-top:0.5rem;">
+                    <label style="font-size:0.72rem; color:var(--text-secondary); display:block; margin-bottom:0.2rem;">Translation Language</label>
+                    <select id="lang-select" class="select-input" onchange="updateAnnouncement()">
+                        <option value="en">🇬🇧 English</option>
+                        <option value="es">🇪🇸 Español</option>
+                        <option value="fr">🇫🇷 Français</option>
+                        <option value="pt">🇧🇷 Português</option>
+                        <option value="ar">🇸🇦 العربية</option>
+                        <option value="ja">🇯🇵 日本語</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Emergency Alert Command -->
+            <div class="card" style="border-color: rgba(239,68,68,0.2);">
+                <div class="card-header" style="color: #FCA5A5;">🚨 Emergency Alert Command</div>
+                <div style="font-size:0.75rem; color:var(--text-secondary); margin-bottom:0.6rem;">Select level, zone, and dispatch alert to all connected devices.</div>
+                <div style="font-size:0.72rem; color:var(--text-muted); margin-bottom:0.35rem; text-transform: uppercase; font-weight: 600; letter-spacing: 0.3px;">Alert Level</div>
+                <div class="alert-level-grid" id="alert-level-grid">
+                    <div class="alert-level-btn selected-l1" data-level="1" onclick="selectAlertLevel(1)">
+                        <div>📢</div><div style="margin-top:2px;">Level 1</div><div style="font-size:0.65rem; opacity:0.8;">App Notify</div>
+                    </div>
+                    <div class="alert-level-btn" data-level="2" onclick="selectAlertLevel(2)">
+                        <div>📣</div><div style="margin-top:2px;">Level 2</div><div style="font-size:0.65rem; opacity:0.8;">PA + SMS</div>
+                    </div>
+                    <div class="alert-level-btn" data-level="3" onclick="selectAlertLevel(3)">
+                        <div>🔒</div><div style="margin-top:2px;">Level 3</div><div style="font-size:0.65rem; opacity:0.8;">Lockdown</div>
+                    </div>
+                </div>
+                <div class="form-group" style="margin-bottom:0.5rem;">
+                    <label>Zone</label>
+                    <select id="alert-zone" class="select-input" style="font-size:0.8rem; padding:0.4rem;"></select>
+                </div>
+                <div class="form-group">
+                    <label>Message</label>
+                    <textarea id="alert-message" class="form-input" placeholder="Describe the emergency situation..." style="font-size:0.82rem; min-height:50px;">Emergency alert. Please follow staff instructions and evacuate calmly.</textarea>
+                </div>
+                <button id="dispatch-alert-btn" class="btn-sm danger" style="width:100%; justify-content:center; padding:0.55rem;" onclick="dispatchAlert()">
+                    🚨 Dispatch Alert
+                </button>
+                <div style="margin-top:0.65rem;">
+                    <div style="font-size:0.72rem; color:var(--text-muted); margin-bottom:0.3rem; font-weight:600; text-transform:uppercase;">Recent Alerts</div>
+                    <div class="alert-history" id="alert-history"></div>
+                </div>
+            </div>
+
+            <!-- Sandbox -->
+            <div class="card" id="sandbox-card">
+                <div class="card-header">🛠️ Interactive Sandbox Editor</div>
+                <div style="font-size:0.75rem; color:var(--text-secondary); margin-bottom:0.45rem;">Click a corridor on the canvas to edit occupancy or toggle blockage.</div>
+                <div class="sandbox-controls">
+                    <div>Selected: <strong id="selected-connection-label" style="color:var(--accent-primary);">None</strong></div>
+                    <div class="sandbox-row">
+                        <span>Occupancy:</span>
+                        <input type="range" id="sandbox-occupancy" class="sandbox-slider" min="0" max="300" value="0" disabled oninput="onSandboxOccupancyChange(this.value)">
+                        <span id="sandbox-occupancy-val">0</span>
+                    </div>
+                    <div class="toggle-row" style="margin-bottom:0;">
+                        <span>Block Connection</span>
+                        <label class="switch"><input type="checkbox" id="sandbox-block" disabled onchange="onSandboxBlockToggle(this.checked)"><span class="slider"></span></label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ════ CENTER: CANVAS / LOW-BW VIEW ════ -->
+        <div class="arena-container" id="arena-box">
+            <canvas id="stadium-canvas"></canvas>
+            <div class="canvas-overlay">
+                <div class="overlay-item"><div class="color-dot" style="background:var(--status-safe)"></div><span>Safe / Low Flow (0–30%)</span></div>
+                <div class="overlay-item"><div class="color-dot" style="background:var(--status-warning)"></div><span>Congested (30–100%)</span></div>
+                <div class="overlay-item"><div class="color-dot" style="background:var(--status-danger)"></div><span>Saturated (&gt;100%)</span></div>
+                <div class="overlay-item"><div class="color-dot" style="background:var(--status-blocked); border:1px dashed #fff;"></div><span>Blocked / Hazard</span></div>
+                <div style="font-size:0.68rem; color:var(--text-muted); margin-top:0.2rem;">Click any node to show optimal route.</div>
+            </div>
+        </div>
+
+        <div class="low-bandwidth-view" id="text-view-box">
+            <h2 style="font-family:var(--font-title); font-size:1.2rem; font-weight:700;">Low Bandwidth Egress Telemetry</h2>
+            <div style="font-size:0.84rem; color:var(--status-danger); font-weight:700; display:none;" id="low-bandwidth-incident-banner">INCIDENT ACTIVE — REROUTING ENGAGED</div>
+            <table class="text-route-table">
+                <thead><tr><th>Stand / Zone</th><th>Recommended Egress Path</th><th>Est. Time</th></tr></thead>
+                <tbody id="text-route-table-body"></tbody>
+            </table>
+        </div>
+
+        <!-- ════ RIGHT PANEL ════ -->
+        <div class="panel">
+
+            <!-- Dynamic Egress Warning + TTS -->
+            <div>
+                <div class="panel-title"><span>📢 Dynamic Egress Warning</span></div>
+                <div class="announcement-box">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span id="announcement-zone-label" style="font-weight:700; font-size:0.84rem; color:var(--accent-primary);">Select a zone</span>
+                        <span id="announcement-status-badge" class="pill"></span>
+                    </div>
+                    <p class="announcement-text" id="announcement-text-content">Click a seating section on the map to generate AI-translated emergency instructions.</p>
+                    <button class="audio-btn" id="play-audio-btn" onclick="speakAnnouncement()" disabled>🔊 Speak Announcement</button>
+                </div>
+            </div>
+
+            <!-- Crowd Crush Risk Monitor -->
+            <div>
+                <div class="panel-title">
+                    <span>💥 Crush Risk Monitor</span>
+                    <button class="btn-sm" onclick="fetchCrushRisk()" id="crush-refresh-btn" style="padding:0.3rem 0.6rem; font-size:0.72rem;">↻ Refresh</button>
+                </div>
+                <div class="crush-risk-panel">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                        <span style="font-size:0.82rem; font-weight:600;">Overall Risk Level</span>
+                        <span id="crush-level-badge" class="crush-level-badge LOW">LOW</span>
+                    </div>
+                    <div id="crush-summary" style="font-size:0.78rem; color:var(--text-secondary); line-height:1.4;">No crush-risk corridors detected. Crowd flow within safe parameters.</div>
+                    <div id="crush-zone-list" class="crush-zone-list"></div>
+                    <div style="margin-top:0.5rem; font-size:0.7rem; color:var(--text-muted);">
+                        Thresholds: Density &ge;80% + LWR penalty &ge;3× base (Fruin Level E/F)
+                    </div>
+                </div>
+            </div>
+
+            <!-- Active Bottlenecks -->
+            <div>
+                <div class="panel-title"><span>⚠️ Active Bottlenecks</span></div>
+                <div class="bottleneck-list" id="bottleneck-list-content">
+                    <div style="font-size:0.78rem; color:var(--text-muted); text-align:center; padding:0.75rem 0;">No bottlenecks detected. All paths nominal.</div>
+                </div>
+            </div>
+
+            <!-- AI Incident Triage -->
+            <div class="card">
+                <div class="card-header">🤖 AI Incident Triage <span style="font-size:0.68rem; color:var(--text-muted); font-weight:400;">(Gemini + Offline Fallback)</span></div>
+                <div style="font-size:0.75rem; color:var(--text-secondary); margin-bottom:0.5rem;">Describe the incident in plain language. AI classifies category, severity, and recommended action.</div>
+                <div class="form-group">
+                    <textarea id="triage-input" class="form-input" placeholder="e.g. Fan collapsed near Gate B2, unconscious, not breathing..." style="font-size:0.82rem; min-height:55px;"></textarea>
+                </div>
+                <button class="btn-sm warn" style="width:100%; justify-content:center;" onclick="runTriage()">🔍 Classify Incident</button>
+                <div class="triage-result" id="triage-result">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div class="triage-category" id="triage-category">Medical</div>
+                        <span id="triage-confidence" style="font-size:0.7rem; color:var(--text-muted);"></span>
+                    </div>
+                    <div style="font-size:0.75rem; color:var(--text-secondary); margin-bottom:0.25rem;">Severity (1 = Low → 5 = Critical)</div>
+                    <div class="severity-bar" id="severity-bar"></div>
+                    <div class="triage-action" id="triage-action"></div>
+                </div>
+            </div>
+
+            <!-- Audit Trail -->
+            <div>
+                <div class="panel-title">
+                    <span>🔐 Tamper-Evident Audit Log</span>
+                    <button class="btn-sm" onclick="verifyAuditChain()" style="padding:0.3rem 0.6rem; font-size:0.72rem;">✓ Verify Chain</button>
+                </div>
+                <div id="audit-verify-status" style="font-size:0.75rem; margin-bottom:0.5rem; display:none;"></div>
+                <div class="audit-list" id="audit-list">
+                    <div style="font-size:0.78rem; color:var(--text-muted); text-align:center; padding:0.5rem;">No audit events recorded yet.</div>
+                </div>
+            </div>
+
+            <!-- Fan Registration (PII Demo) -->
+            <div class="card">
+                <div class="card-header">🎫 Personal Egress Ticket <span style="font-size:0.68rem; color:var(--text-muted); font-weight:400;">(PII Masking Demo)</span></div>
+                <form id="fan-registration-form" onsubmit="registerFan(event)">
+                    <div class="form-group"><label>Full Name</label><input type="text" id="reg-name" class="form-input" placeholder="Jane Doe" required></div>
+                    <div class="form-group"><label>Email</label><input type="email" id="reg-email" class="form-input" placeholder="jane@example.com" required></div>
+                    <div class="form-group"><label>Phone</label><input type="tel" id="reg-phone" class="form-input" placeholder="+1-555-0199" required></div>
+                    <div class="form-group"><label>Ticket ID</label><input type="text" id="reg-ticket" class="form-input" placeholder="TKT-1049-US" required></div>
+                    <div class="form-group"><label>Seating Zone</label><select id="reg-zone" class="select-input"></select></div>
+                    <button type="submit" class="form-btn">Generate Secure Egress Ticket</button>
+                </form>
+                <div id="registration-result">
+                    <div style="color:var(--status-safe); font-weight:700; font-size:0.82rem;">✅ Registration Successful</div>
+                    <div>Name: <span id="res-name" style="font-weight:600;"></span></div>
+                    <div>Email: <code id="res-email"></code> <span style="color:var(--status-blocked); font-size:0.65rem;">(MASKED PII)</span></div>
+                    <div>Phone: <code id="res-phone"></code> <span style="color:var(--status-blocked); font-size:0.65rem;">(MASKED PII)</span></div>
+                    <div>Ticket: <code id="res-ticket"></code></div>
+                    <div style="font-weight:700; margin-top:0.25rem;">Egress Route:</div>
+                    <div id="res-route" style="color:var(--accent-primary); font-family:monospace; font-size:0.8rem;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════ CHATBOT WIDGET ═══════════════════ -->
+    <button id="chatbot-bubble" onclick="toggleChatbot()" title="SafePass AI Fan Assistant">💬</button>
+    <div id="chatbot-panel">
+        <div class="chatbot-header">
+            <div>
+                <div class="chatbot-title">SafePass AI Assistant 🤖</div>
+                <div class="chatbot-subtitle">Powered by Gemini · FIFA 2026 Knowledge Base</div>
+            </div>
+            <span class="chatbot-close" onclick="toggleChatbot()">✕</span>
+        </div>
+        <div class="chatbot-messages" id="chatbot-messages">
+            <div class="chat-msg bot">Hello! I'm your SafePass AI assistant for FIFA World Cup 2026. Ask me anything about the stadium — exits, food, first aid, transport, or safety!</div>
+        </div>
+        <div class="chatbot-input-row">
+            <input type="text" id="chatbot-input" class="chatbot-input" placeholder="Ask a question..." onkeydown="if(event.key==='Enter') sendChatMessage()">
+            <button class="chatbot-send" onclick="sendChatMessage()">▶</button>
+        </div>
+    </div>
+
+    <!-- ═══════════════════ JAVASCRIPT ENGINE ═══════════════════ -->
+    <script>
+        // ── State ──────────────────────────────────────────────────
+        let ws, stadiumTelemetry = null;
+        let selectedNode = null, selectedEdge = null;
+        let lowBandwidth = false, highContrast = false;
+        let animationFrameId = null;
+        let currentAlertLevel = 1;
+        let chatHistory = [];
+        let chatbotOpen = false;
+
+        const canvas = document.getElementById("stadium-canvas");
+        const ctx = canvas.getContext("2d");
+
+        // ── Node Coordinates (36-node graph, scaled to 600×500) ──
+        const nodeCoordinates = {
+            // Seating Bowl — Lower (inner ring, 8 sections)
+            "Section_101_Lower": { x: 270, y: 155 },
+            "Section_102_Lower": { x: 340, y: 155 },
+            "Section_103_Lower": { x: 430, y: 200 },
+            "Section_104_Lower": { x: 445, y: 270 },
+            "Section_105_Lower": { x: 355, y: 345 },
+            "Section_106_Lower": { x: 270, y: 345 },
+            "Section_107_Lower": { x: 175, y: 270 },
+            "Section_108_Lower": { x: 160, y: 200 },
+
+            // Seating Bowl — Upper (outer ring, 8 sections)
+            "Section_201_Upper": { x: 270, y: 115 },
+            "Section_202_Upper": { x: 340, y: 115 },
+            "Section_203_Upper": { x: 480, y: 165 },
+            "Section_204_Upper": { x: 500, y: 280 },
+            "Section_205_Upper": { x: 390, y: 390 },
+            "Section_206_Upper": { x: 230, y: 390 },
+            "Section_207_Upper": { x: 110, y: 280 },
+            "Section_208_Upper": { x: 130, y: 165 },
+
+            // VIP & Accessible
+            "VIP_Suite_North":    { x: 305, y: 185 },
+            "VIP_Suite_South":    { x: 305, y: 315 },
+            "Wheelchair_Zone_East": { x: 450, y: 250 },
+            "Wheelchair_Zone_West": { x: 165, y: 250 },
+
+            // Concourses (ring corridor)
+            "Concourse_North_1":  { x: 258, y: 218 },
+            "Concourse_North_2":  { x: 348, y: 218 },
+            "Concourse_East_1":   { x: 395, y: 218 },
+            "Concourse_East_2":   { x: 395, y: 282 },
+            "Concourse_South_1":  { x: 348, y: 282 },
+            "Concourse_South_2":  { x: 258, y: 282 },
+            "Concourse_West_1":   { x: 212, y: 282 },
+            "Concourse_West_2":   { x: 212, y: 218 },
+
+            // Exit Gates (outermost)
+            "Gate_A1_North": { x: 248, y: 55 },
+            "Gate_A2_North": { x: 358, y: 55 },
+            "Gate_B1_East":  { x: 555, y: 200 },
+            "Gate_B2_East":  { x: 555, y: 305 },
+            "Gate_C1_South": { x: 358, y: 450 },
+            "Gate_C2_South": { x: 248, y: 450 },
+            "Gate_D1_West":  { x: 55,  y: 305 },
+            "Gate_D2_West":  { x: 55,  y: 200 },
+        };
+
+        // ── Canvas Resize ─────────────────────────────────────────
+        function resizeCanvas() {
+            const r = canvas.parentElement.getBoundingClientRect();
+            canvas.width = r.width;
+            canvas.height = r.height;
+        }
+
+        // ── WebSocket ─────────────────────────────────────────────
+        function connectWS() {
+            const proto = location.protocol === "https:" ? "wss:" : "ws:";
+            ws = new WebSocket(`${proto}//${location.host}/ws`);
+
+            ws.onopen = () => updateBadge("Telemetry Connected", "safe");
+            ws.onmessage = (e) => {
+                const msg = JSON.parse(e.data);
+                if (msg.type === "state_update") { stadiumTelemetry = msg.data; updateUI(); }
+                else if (msg.type === "emergency_alert") { showEmergencyToast(msg.data); }
+            };
+            ws.onclose = () => { updateBadge("Offline — Retrying", "danger"); setTimeout(connectWS, 3000); };
+        }
+
+        function updateBadge(text, status) {
+            const b = document.getElementById("ws-badge");
+            b.textContent = text;
+            const colors = { safe: ["var(--status-safe)", "rgba(16,185,129,0.12)"], danger: ["var(--status-danger)", "rgba(239,68,68,0.12)"] };
+            b.style.color = colors[status][0];
+            b.style.background = colors[status][1];
+            b.style.borderColor = colors[status][0];
+        }
+
+        // ── Scenarios ─────────────────────────────────────────────
+        async function loadScenario(name) {
+            document.querySelectorAll(".btn").forEach(b => b.classList.remove("active"));
+            const btn = document.getElementById(`btn-${name}`);
+            if (btn) btn.classList.add("active");
+            const t0 = performance.now();
+            try {
+                const r = await fetch(`/api/scenarios/${name}`, { method: 'POST' });
+                const data = await r.json();
+                stadiumTelemetry = data.data;
+                document.getElementById("latency-val").textContent = `${Math.round(performance.now()-t0)}ms`;
+                updateUI();
+                await fetchCrushRisk();
+            } catch(e) { console.error(e); }
+        }
+
+        // ── Crush Risk ────────────────────────────────────────────
+        async function fetchCrushRisk() {
+            try {
+                const r = await fetch('/api/crush_risk');
+                const data = await r.json();
+                renderCrushRisk(data);
+                fetchAuditLog();
+            } catch(e) { console.error(e); }
+        }
+
+        function renderCrushRisk(data) {
+            const level = data.level || "LOW";
+            const badge = document.getElementById("crush-level-badge");
+            badge.textContent = level;
+            badge.className = `crush-level-badge ${level}`;
+
+            document.getElementById("crush-summary").textContent = data.summary;
+            document.getElementById("crush-val").textContent = level;
+
+            const icons = { LOW: "🟢", MODERATE: "⚠️", CRITICAL: "🚨" };
+            const colors = { LOW: "var(--status-safe)", MODERATE: "var(--status-warning)", CRITICAL: "var(--status-crush)" };
+            document.getElementById("crush-icon").textContent = icons[level] || "🟢";
+            document.getElementById("crush-val").style.color = colors[level] || "var(--status-safe)";
+
+            // Banner
+            const banner = document.getElementById("crush-alert-banner");
+            if (level === "CRITICAL") {
+                document.getElementById("crush-banner-text").textContent = `🚨 CRUSH ALERT: ${data.summary}`;
+                banner.classList.add("show");
+            } else { banner.classList.remove("show"); }
+
+            // Zone list
+            const list = document.getElementById("crush-zone-list");
+            list.innerHTML = "";
+            (data.zones || []).slice(0,5).forEach(z => {
+                const d = document.createElement("div");
+                d.className = "crush-zone-item";
+                d.innerHTML = `<strong>${z.source.replace(/_/g,' ')} → ${z.target.replace(/_/g,' ')}</strong> &nbsp; Density: ${Math.round(z.density_ratio*100)}% &nbsp; Penalty: ${z.penalty_multiplier}×`;
+                list.appendChild(d);
+            });
+        }
+
+        // ── AI Incident Triage ────────────────────────────────────
+        async function runTriage() {
+            const desc = document.getElementById("triage-input").value.trim();
+            if (!desc || desc.length < 5) return;
+            const btn = document.querySelector("button[onclick='runTriage()']");
+            btn.disabled = true; btn.textContent = "🧠 Classifying...";
+            try {
+                const r = await fetch('/api/triage', {
+                    method: 'POST', headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({ description: desc })
+                });
+                const data = await r.json();
+                renderTriageResult(data);
+                fetchAuditLog();
+            } catch(e) { console.error(e); }
+            finally { btn.disabled = false; btn.textContent = "🔍 Classify Incident"; }
+        }
+
+        function renderTriageResult(data) {
+            const catColors = {
+                Medical: "#EF4444", Security: "#7C3AED", Structural: "#F59E0B",
+                Crowd: "#F97316", Equipment: "#3B82F6"
+            };
+            const catEmojis = { Medical: "🏥", Security: "🛡️", Structural: "🏗️", Crowd: "👥", Equipment: "⚙️" };
+            const cat = data.category || "Unknown";
+
+            document.getElementById("triage-category").innerHTML = `${catEmojis[cat] || "❓"} ${cat}`;
+            document.getElementById("triage-category").style.color = catColors[cat] || "var(--text-primary)";
+            document.getElementById("triage-confidence").textContent = `Confidence: ${data.confidence || "N/A"}`;
+            document.getElementById("triage-action").textContent = `📋 Recommended: ${data.action || data.recommended_action || "Assess and coordinate with ops team."}`;
+
+            // Severity pips
+            const sev = Math.min(5, Math.max(1, data.severity || 1));
+            const bar = document.getElementById("severity-bar");
+            bar.innerHTML = "";
+            for (let i=1; i<=5; i++) {
+                const pip = document.createElement("div");
+                pip.className = `severity-pip${i<=sev ? ` active s${sev}` : ""}`;
+                bar.appendChild(pip);
+            }
+            document.getElementById("triage-result").classList.add("show");
+        }
+
+        // ── Emergency Alert Dispatch ──────────────────────────────
+        let selectedAlertLevel = 1;
+        function selectAlertLevel(level) {
+            selectedAlertLevel = level;
+            document.querySelectorAll(".alert-level-btn").forEach(b => b.className = "alert-level-btn");
+            const btn = document.querySelector(`.alert-level-btn[data-level="${level}"]`);
+            if (btn) btn.classList.add(`selected-l${level}`);
+        }
+
+        async function dispatchAlert() {
+            const zone = document.getElementById("alert-zone").value;
+            const message = document.getElementById("alert-message").value.trim();
+            if (!zone || !message) return;
+
+            const btn = document.getElementById("dispatch-alert-btn");
+            btn.disabled = true; btn.textContent = "Dispatching...";
+
+            try {
+                const r = await fetch('/api/alert', {
+                    method: 'POST', headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({ level: selectedAlertLevel, zone: zone, message: message })
+                });
+                const data = await r.json();
+                addAlertHistoryItem(data);
+                fetchAuditLog();
+            } catch(e) { console.error(e); }
+            finally { btn.disabled = false; btn.textContent = "🚨 Dispatch Alert"; }
+        }
+
+        function addAlertHistoryItem(data) {
+            const hist = document.getElementById("alert-history");
+            const d = document.createElement("div");
+            d.className = "alert-history-item";
+            const levelIcons = {1:"📢",2:"📣",3:"🔒"};
+            const levelColors = {1:"var(--accent-primary)",2:"var(--status-warning)",3:"var(--status-danger)"};
+            d.innerHTML = `<span style="color:${levelColors[data.level]}">${levelIcons[data.level]}</span> <strong>L${data.level}</strong> · <span style="color:var(--text-secondary)">${(data.zone||"").replace(/_/g,' ')}</span> <span style="float:right; color:var(--text-muted)">#${data.audit_entry_index}</span>`;
+            hist.prepend(d);
+        }
+
+        function showEmergencyToast(alertData) {
+            const toast = document.getElementById("emergency-toast");
+            const level = alertData.level || 1;
+            toast.className = `show level-${level}`;
+            const levelLabels = {1:"📢 Level 1 — App Notification", 2:"📣 Level 2 — PA & SMS Triggered", 3:"🔒 Level 3 — FULL LOCKDOWN"};
+            const levelBgColors = {1:"var(--accent-primary)",2:"var(--status-warning)",3:"var(--status-danger)"};
+            const badge = document.getElementById("toast-level-badge");
+            badge.textContent = levelLabels[level] || `Level ${level}`;
+            badge.style.background = levelBgColors[level];
+            badge.style.color = "#fff";
+            badge.style.padding = "0.2rem 0.5rem";
+            badge.style.borderRadius = "5px";
+            document.getElementById("toast-message").textContent = alertData.message || "";
+            document.getElementById("toast-zone").textContent = `Zone: ${(alertData.zone||"").replace(/_/g,' ')}`;
+            if (level === 3 && 'speechSynthesis' in window) {
+                const utt = new SpeechSynthesisUtterance(`Emergency Level 3 Lockdown. ${alertData.message}. Please evacuate immediately.`);
+                utt.rate = 0.9; window.speechSynthesis.speak(utt);
+            }
+            setTimeout(closeToast, level === 3 ? 15000 : 6000);
+        }
+        function closeToast() { document.getElementById("emergency-toast").classList.remove("show"); }
+
+        // ── Chatbot ───────────────────────────────────────────────
+        function toggleChatbot() {
+            chatbotOpen = !chatbotOpen;
+            document.getElementById("chatbot-panel").classList.toggle("open", chatbotOpen);
+        }
+
+        async function sendChatMessage() {
+            const inp = document.getElementById("chatbot-input");
+            const msg = inp.value.trim();
+            if (!msg) return;
+            inp.value = "";
+            const lang = document.getElementById("lang-select").value;
+
+            appendChatMsg(msg, "user");
+            chatHistory.push({ role: "user", text: msg });
+
+            const thinking = appendChatMsg("SafePass is thinking...", "bot thinking");
+            try {
+                const r = await fetch('/api/chat', {
+                    method: 'POST', headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({ message: msg, lang: lang, history: chatHistory.slice(-6) })
+                });
+                const data = await r.json();
+                thinking.remove();
+                const botMsg = data.response || "I'm sorry, I couldn't process that request.";
+                appendChatMsg(botMsg, "bot");
+                chatHistory.push({ role: "assistant", text: botMsg });
+            } catch(e) {
+                thinking.remove();
+                appendChatMsg("Connection error. Please try again.", "bot");
+            }
+        }
+
+        function appendChatMsg(text, type) {
+            const msgs = document.getElementById("chatbot-messages");
+            const el = document.createElement("div");
+            el.className = `chat-msg ${type}`;
+            el.textContent = text;
+            msgs.appendChild(el);
+            msgs.scrollTop = msgs.scrollHeight;
+            return el;
+        }
+
+        // ── Audit Log ─────────────────────────────────────────────
+        async function fetchAuditLog() {
+            try {
+                const r = await fetch('/api/audit_log?limit=20');
+                const data = await r.json();
+                document.getElementById("audit-count").textContent = data.total_entries;
+                renderAuditLog(data.entries);
+            } catch(e) { console.error(e); }
+        }
+
+        function renderAuditLog(entries) {
+            const list = document.getElementById("audit-list");
+            if (!entries || entries.length === 0) { list.innerHTML = '<div style="font-size:0.78rem; color:var(--text-muted); text-align:center; padding:0.5rem;">No audit events recorded yet.</div>'; return; }
+            list.innerHTML = "";
+            [...entries].reverse().forEach(e => {
+                const item = document.createElement("div");
+                item.className = "audit-item";
+                item.innerHTML = `
+                    <div>
+                        <div class="audit-event">${e.event_type.replace(/_/g,' ')}</div>
+                        <div style="font-size:0.68rem; color:var(--text-muted);">#${e.index} · ${new Date(e.timestamp).toLocaleTimeString()}</div>
+                    </div>
+                    <div class="audit-hash" title="${e.hash}">${e.hash.substring(0,10)}…</div>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        async function verifyAuditChain() {
+            const statusEl = document.getElementById("audit-verify-status");
+            statusEl.style.display = "block";
+            statusEl.textContent = "Verifying SHA-256 chain...";
+            try {
+                const r = await fetch('/api/audit_verify');
+                const data = await r.json();
+                const badge = document.createElement("span");
+                badge.className = `audit-verify-badge ${data.valid ? 'valid' : 'invalid'}`;
+                badge.textContent = data.valid ? `✓ ${data.message}` : `⚠ ${data.message}`;
+                statusEl.innerHTML = "";
+                statusEl.appendChild(badge);
+                if (data.chain_tip_hash) {
+                    const tip = document.createElement("div");
+                    tip.style.cssText = "font-size:0.68rem; color:var(--text-muted); margin-top:2px; font-family:monospace;";
+                    tip.textContent = `Chain tip: ${data.chain_tip_hash}`;
+                    statusEl.appendChild(tip);
+                }
+            } catch(e) { statusEl.textContent = "Verification failed — connection error."; }
+        }
+
+        // ── API helpers ───────────────────────────────────────────
+        async function updateOccupancyAPI(src, tgt, val) {
+            try { await fetch('/api/update_occupancy', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({source:src,target:tgt,occupancy:parseFloat(val)}) }); } catch(e) {}
+        }
+        async function updateBlockAPI(src, tgt, isBlocked) {
+            try { await fetch('/api/block_edge', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({source:src,target:tgt,is_blocked:isBlocked}) }); } catch(e) {}
+        }
+
+        // ── Fan Registration ──────────────────────────────────────
+        async function registerFan(event) {
+            event.preventDefault();
+            try {
+                const r = await fetch('/api/register_fan', {
+                    method:'POST', headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({
+                        name: document.getElementById("reg-name").value,
+                        email: document.getElementById("reg-email").value,
+                        phone: document.getElementById("reg-phone").value,
+                        ticket_id: document.getElementById("reg-ticket").value,
+                        start_zone: document.getElementById("reg-zone").value
+                    })
+                });
+                const data = await r.json();
+                if (data.status === "success") {
+                    document.getElementById("res-name").textContent = data.fan.name;
+                    document.getElementById("res-email").textContent = data.fan.masked_email;
+                    document.getElementById("res-phone").textContent = data.fan.masked_phone;
+                    document.getElementById("res-ticket").textContent = data.fan.masked_ticket;
+                    document.getElementById("res-route").textContent = data.egress_plan.path.length > 0 ? data.egress_plan.path.join(" ➔ ") : "NO SAFE PATH AVAILABLE";
+                    document.getElementById("registration-result").style.display = "flex";
+                }
+            } catch(e) { console.error(e); }
+        }
+
+        // ── Announcement ──────────────────────────────────────────
+        async function updateAnnouncement() {
+            if (!stadiumTelemetry || !selectedNode) return;
+            const lang = document.getElementById("lang-select").value;
+            document.getElementById("announcement-zone-label").textContent = selectedNode.replace(/_/g,' ');
+            try {
+                const r = await fetch(`/api/announcement?zone=${selectedNode}&lang=${lang}`);
+                const data = await r.json();
+                document.getElementById("announcement-text-content").textContent = data.instruction;
+                const badge = document.getElementById("announcement-status-badge");
+                const maps = {success:["safe","✓ Clear"], warning:["warning","⚠ Congested"], danger:["danger","🚨 Blocked"]};
+                const [cls, label] = maps[data.status] || ["safe","✓ Clear"];
+                badge.textContent = label; badge.className = `pill ${cls}`;
+                document.getElementById("play-audio-btn").disabled = false;
+            } catch(e) { console.error(e); }
+        }
+
+        function speakAnnouncement() {
+            const text = document.getElementById("announcement-text-content").textContent;
+            const lang = document.getElementById("lang-select").value;
+            if (!('speechSynthesis' in window)) { alert("Speech Synthesis not supported in this browser."); return; }
+            window.speechSynthesis.cancel();
+            const utt = new SpeechSynthesisUtterance(text);
+            const voices = window.speechSynthesis.getVoices();
+            const matched = voices.find(v => v.lang.startsWith(lang));
+            if (matched) utt.voice = matched;
+            utt.lang = lang; utt.rate = 0.93;
+            window.speechSynthesis.speak(utt);
+        }
+
+        // ── Accessibility ─────────────────────────────────────────
+        function toggleHighContrast() {
+            highContrast = document.getElementById("contrast-toggle").checked;
+            document.body.classList.toggle("high-contrast", highContrast);
+            updateUI();
+        }
+        function toggleLowBandwidth() {
+            lowBandwidth = document.getElementById("bandwidth-toggle").checked;
+            document.body.classList.toggle("low-bandwidth", lowBandwidth);
+            if (lowBandwidth) { if (animationFrameId) { cancelAnimationFrame(animationFrameId); animationFrameId = null; } }
+            else requestAnimationFrame(drawLoop);
+            updateUI();
+        }
+
+        // ── UI Update ─────────────────────────────────────────────
+        function updateUI() {
+            if (!stadiumTelemetry) return;
+
+            // KPIs
+            const bc = stadiumTelemetry.bottlenecks.length;
+            document.getElementById("bottlenecks-count").textContent = bc;
+            if (bc === 0) { document.getElementById("risk-val").textContent = "Normal"; document.getElementById("risk-val").style.color = "var(--status-safe)"; document.getElementById("risk-icon").textContent = "💚"; }
+            else if (bc < 3) { document.getElementById("risk-val").textContent = "Moderate"; document.getElementById("risk-val").style.color = "var(--status-warning)"; document.getElementById("risk-icon").textContent = "⚠️"; }
+            else { document.getElementById("risk-val").textContent = "CRITICAL"; document.getElementById("risk-val").style.color = "var(--status-danger)"; document.getElementById("risk-icon").textContent = "🚨"; }
+
+            // Avg evac time
+            let tot = 0, cnt = 0;
+            for (const s in stadiumTelemetry.routing_plans) {
+                const v = stadiumTelemetry.routing_plans[s].evacuation_time_sec;
+                if (v > 0) { tot += v; cnt++; }
+            }
+            document.getElementById("avg-time-val").textContent = cnt > 0 ? `${(tot/cnt).toFixed(1)}s` : "--";
+
+            // Zone selectors
+            const regZone = document.getElementById("reg-zone");
+            const alertZone = document.getElementById("alert-zone");
+            if (regZone.children.length === 0) {
+                const allNodes = [...stadiumTelemetry.nodes].sort();
+                allNodes.forEach(n => {
+                    const o = document.createElement("option"); o.value = n; o.textContent = n.replace(/_/g,' ');
+                    regZone.appendChild(o.cloneNode(true));
+                    alertZone.appendChild(o);
+                });
+            }
+
+            // Bottleneck list
+            const bl = document.getElementById("bottleneck-list-content");
+            bl.innerHTML = "";
+            if (stadiumTelemetry.bottlenecks.length === 0) {
+                bl.innerHTML = '<div style="font-size:0.77rem;color:var(--text-muted);text-align:center;padding:0.65rem 0;">No active bottlenecks. Egress routes nominal.</div>';
+            } else {
+                stadiumTelemetry.bottlenecks.forEach(b => {
+                    const el = document.createElement("div");
+                    el.className = `bottleneck-item ${b.is_blocked ? 'blocked' : ''}`;
+                    el.innerHTML = `<span>${b.is_blocked ? '❌ BLOCKED: ' : '⚠️ '} ${b.source.replace(/_/g,' ')} → ${b.target.replace(/_/g,' ')}</span><span>${b.is_blocked ? 'Blocked' : Math.round(b.occupancy)+'/'+Math.round(b.capacity)}</span>`;
+                    bl.appendChild(el);
+                });
+            }
+
+            // Low bandwidth table
+            if (lowBandwidth) {
+                const tb = document.getElementById("text-route-table-body");
+                tb.innerHTML = "";
+                const banner = document.getElementById("low-bandwidth-incident-banner");
+                if (stadiumTelemetry.scenario !== "normal") { banner.style.display = "block"; banner.textContent = `INCIDENT: ${stadiumTelemetry.scenario.toUpperCase()} — REROUTING ENGAGED`; }
+                else banner.style.display = "none";
+                Object.keys(stadiumTelemetry.routing_plans).sort().forEach(s => {
+                    const p = stadiumTelemetry.routing_plans[s];
+                    const color = p.evacuation_time_sec < 0 ? 'var(--status-danger)' : p.evacuation_time_sec > 30 ? 'var(--status-warning)' : 'var(--text-primary)';
+                    const tr = document.createElement("tr");
+                    tr.innerHTML = `<td style="font-weight:600;">${s.replace(/_/g,' ')}</td><td style="font-family:monospace;color:${color}">${p.path.join(' ➔ ').replace(/_/g,' ') || 'NO ROUTE'}</td><td style="color:${color}">${p.evacuation_time_sec > 0 ? p.evacuation_time_sec+'s' : 'N/A'}</td>`;
+                    tb.appendChild(tr);
+                });
+            }
+
+            // Sandbox
+            if (selectedEdge) {
+                const ae = stadiumTelemetry.edges.find(e => (e.source===selectedEdge.source&&e.target===selectedEdge.target)||(e.source===selectedEdge.target&&e.target===selectedEdge.source));
+                if (ae) {
+                    document.getElementById("selected-connection-label").textContent = `${ae.source.replace(/_/g,' ')} ➔ ${ae.target.replace(/_/g,' ')}`;
+                    document.getElementById("sandbox-occupancy").disabled = false; document.getElementById("sandbox-occupancy").value = ae.occupancy; document.getElementById("sandbox-occupancy-val").textContent = Math.round(ae.occupancy);
+                    document.getElementById("sandbox-block").disabled = false; document.getElementById("sandbox-block").checked = ae.is_blocked;
+                }
+            }
+        }
+
+        // ── Canvas Rendering ──────────────────────────────────────
+        function drawStadium() {
+            if (!stadiumTelemetry || lowBandwidth) return;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const scaleX = canvas.width / 600;
+            const scaleY = canvas.height / 500;
+            const getXY = n => { const b = nodeCoordinates[n]; return b ? { x: b.x * scaleX, y: b.y * scaleY } : null; };
+
+            // Draw all edges
+            stadiumTelemetry.edges.forEach(edge => {
+                const p1 = getXY(edge.source), p2 = getXY(edge.target);
+                if (!p1 || !p2) return;
+
+                let color = "rgba(16,185,129,0.7)", thick = 2.5, dash = [];
+                if (edge.is_blocked) { color = "rgba(124,58,237,0.85)"; thick = 4; dash = [6,4]; }
+                else {
+                    const r = edge.capacity > 0 ? edge.occupancy / edge.capacity : 0;
+                    if (r > 1.2) { color = "rgba(239,68,68,0.9)"; thick = 5; }
+                    else if (r >= 0.7) { color = "rgba(245,158,11,0.8)"; thick = 3.5; }
+                }
+
+                // Selected edge highlight
+                const isSel = selectedEdge && ((selectedEdge.source===edge.source&&selectedEdge.target===edge.target)||(selectedEdge.source===edge.target&&selectedEdge.target===edge.source));
+                if (isSel) { ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.strokeStyle="rgba(255,255,255,0.3)"; ctx.lineWidth=thick+4; ctx.setLineDash([]); ctx.stroke(); }
+
+                ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y);
+                ctx.strokeStyle = color; ctx.lineWidth = thick; ctx.setLineDash(dash); ctx.stroke(); ctx.setLineDash([]);
+            });
+
+            // Draw active route
+            if (selectedNode && stadiumTelemetry.routing_plans[selectedNode]) {
+                const plan = stadiumTelemetry.routing_plans[selectedNode];
+                if (plan.path && plan.path.length > 1) {
+                    ctx.beginPath();
+                    plan.path.forEach((n,i) => { const p = getXY(n); if (!p) return; i===0 ? ctx.moveTo(p.x,p.y) : ctx.lineTo(p.x,p.y); });
+                    ctx.strokeStyle = "rgba(99,102,241,0.95)"; ctx.lineWidth = 7; ctx.shadowBlur = 18; ctx.shadowColor = "rgba(99,102,241,0.6)"; ctx.setLineDash([]); ctx.stroke(); ctx.shadowBlur = 0;
+
+                    // Animated flow dots
+                    const t = Date.now() * 0.003;
+                    for (let i = 0; i < plan.path.length - 1; i++) {
+                        const pS = getXY(plan.path[i]), pE = getXY(plan.path[i+1]);
+                        if (!pS || !pE) continue;
+                        for (let d = 0; d < 3; d++) {
+                            const off = ((d/3) + t) % 1;
+                            ctx.beginPath();
+                            ctx.arc(pS.x+(pE.x-pS.x)*off, pS.y+(pE.y-pS.y)*off, 4, 0, 2*Math.PI);
+                            ctx.fillStyle = "#FFFFFF"; ctx.shadowBlur = 8; ctx.shadowColor = "#fff"; ctx.fill(); ctx.shadowBlur = 0;
+                        }
+                    }
+                }
+            }
+
+            // Draw nodes
+            stadiumTelemetry.nodes.forEach(node => {
+                const p = getXY(node);
+                if (!p) return;
+
+                let r = 7, fill = "var(--bg-card)", stroke = "rgba(255,255,255,0.2)";
+                if (node.startsWith("Gate_")) { r = 12; fill = "var(--accent-primary)"; stroke = "#fff"; }
+                else if (node.startsWith("Section_") || node.startsWith("VIP_") || node.startsWith("Wheelchair_")) { r = 8; stroke = "rgba(255,255,255,0.35)"; }
+                else if (node.startsWith("Concourse_")) { r = 6; fill = "rgba(99,102,241,0.2)"; stroke = "rgba(99,102,241,0.6)"; }
+
+                if (node === selectedNode) {
+                    ctx.beginPath(); ctx.arc(p.x, p.y, r+6, 0, 2*Math.PI);
+                    ctx.fillStyle = "rgba(99,102,241,0.2)"; ctx.fill();
+                    ctx.strokeStyle = "rgba(99,102,241,0.8)"; ctx.lineWidth = 1.5; ctx.stroke();
+                }
+
+                ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 2*Math.PI);
+                ctx.fillStyle = fill; ctx.fill(); ctx.strokeStyle = stroke; ctx.lineWidth = 1.5; ctx.stroke();
+
+                // Labels for gates + selected
+                if (node.startsWith("Gate_") || node === selectedNode) {
+                    ctx.fillStyle = node === selectedNode ? "#818CF8" : "var(--text-primary)";
+                    ctx.font = `bold ${node.startsWith("Gate_") ? 9 : 8}px 'Plus Jakarta Sans', sans-serif`;
+                    ctx.textAlign = "center";
+                    ctx.fillText(node.replace(/_/g,' '), p.x, p.y - r - 5);
+                }
+            });
+        }
+
+        function drawLoop() {
+            drawStadium();
+            if (!lowBandwidth) animationFrameId = requestAnimationFrame(drawLoop);
+        }
+
+        // ── Canvas Click ──────────────────────────────────────────
+        canvas.addEventListener("click", (e) => {
+            if (!stadiumTelemetry) return;
+            const rect = canvas.getBoundingClientRect();
+            const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+            const sx = canvas.width / 600, sy = canvas.height / 500;
+
+            let clickedNode = null;
+            for (const n of stadiumTelemetry.nodes) {
+                const c = nodeCoordinates[n]; if (!c) continue;
+                if (Math.hypot(cx - c.x*sx, cy - c.y*sy) < 18) { clickedNode = n; break; }
+            }
+
+            if (clickedNode) {
+                selectedNode = clickedNode; selectedEdge = null;
+                updateAnnouncement(); updateUI(); return;
+            }
+
+            let bestEdge = null, minDist = 12;
+            stadiumTelemetry.edges.forEach(edge => {
+                const p1 = nodeCoordinates[edge.source], p2 = nodeCoordinates[edge.target];
+                if (!p1 || !p2) return;
+                const x1=p1.x*sx, y1=p1.y*sy, x2=p2.x*sx, y2=p2.y*sy;
+                const A=cx-x1, B=cy-y1, C=x2-x1, D=y2-y1;
+                const dot=A*C+B*D, len_sq=C*C+D*D;
+                let param = len_sq !== 0 ? dot/len_sq : -1;
+                const xx = param<0?x1:param>1?x2:x1+param*C;
+                const yy = param<0?y1:param>1?y2:y1+param*D;
+                const dist = Math.hypot(cx-xx, cy-yy);
+                if (dist < minDist) { minDist = dist; bestEdge = { source: edge.source, target: edge.target }; }
+            });
+            if (bestEdge) { selectedEdge = bestEdge; updateUI(); }
+        });
+
+        // ── Sandbox Controls ──────────────────────────────────────
+        function onSandboxOccupancyChange(val) {
+            if (!selectedEdge) return;
+            document.getElementById("sandbox-occupancy-val").textContent = val;
+            updateOccupancyAPI(selectedEdge.source, selectedEdge.target, val);
+        }
+        function onSandboxBlockToggle(isBlocked) {
+            if (!selectedEdge) return;
+            updateBlockAPI(selectedEdge.source, selectedEdge.target, isBlocked);
+        }
+
+        // ── Init ──────────────────────────────────────────────────
+        window.addEventListener("load", async () => {
+            resizeCanvas();
+            connectWS();
+            requestAnimationFrame(drawLoop);
+
+            // Auto-poll initial state
+            try {
+                const r = await fetch('/api/status');
+                stadiumTelemetry = await r.json();
+                updateUI();
+                updateAnnouncement();
+            } catch(e) {}
+
+            // Fetch crush risk every 10 seconds
+            fetchCrushRisk();
+            setInterval(fetchCrushRisk, 10000);
+
+            // Refresh audit log periodically
+            fetchAuditLog();
+            setInterval(fetchAuditLog, 5000);
+        });
+
+        window.addEventListener("resize", resizeCanvas);
+    </script>
+</body>
+</html>
