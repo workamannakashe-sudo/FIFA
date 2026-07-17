@@ -1,13 +1,48 @@
+"""
+app/ai_helper.py
+~~~~~~~~~~~~~~~~
+AI integration helper and fallback triage systems for SafePass 2026.
+
+Uses Google Gemini Pro (gemini-1.5-flash) to power:
+1. Multilingual evacuation guide translation.
+2. Real-time incident report classification (triage).
+3. Grounded fan assistant queries (RAG chatbot).
+
+Includes zero-dependency offline local fallbacks that handle key language
+translation grids, text pattern classifiers, and keyword search indexes when
+the Gemini API key is missing or calls time out.
+"""
+
+from __future__ import annotations
+
 import json
 import logging
 import re
+from typing import Dict, List, Optional
+
 import google.generativeai as genai
+
 from app.config import GEMINI_API_KEY
+
+__all__ = [
+    "generate_accessible_instructions",
+    "classify_incident",
+    "fan_chatbot_query",
+    "STADIUM_KNOWLEDGE_BASE",
+    "LOCAL_TRANSLATIONS",
+    "TRIAGE_KEYWORDS",
+    "SEVERITY_WORDS",
+    "TRIAGE_ACTIONS",
+]
 
 logger = logging.getLogger("safepass.ai")
 
+# ---------------------------------------------------------------------------
 # Initialize Gemini if API key is provided
-GEMINI_AVAILABLE = False
+# ---------------------------------------------------------------------------
+GEMINI_AVAILABLE: bool = False
+gemini_model: Optional[genai.GenerativeModel] = None
+
 if GEMINI_API_KEY:
     try:
         genai.configure(api_key=GEMINI_API_KEY)
@@ -16,77 +51,110 @@ if GEMINI_API_KEY:
         GEMINI_AVAILABLE = True
         logger.info("Google Gemini API successfully configured.")
     except Exception as e:
-        logger.error(f"Failed to initialize Google Gemini API: {e}. Falling back to offline engine.")
+        logger.error(
+            "Failed to initialize Google Gemini API: %s. Falling back to offline engine.",
+            e,
+        )
 else:
     logger.info("No GEMINI_API_KEY provided. Operating in offline local fallback mode.")
 
-
+# ---------------------------------------------------------------------------
 # High-quality offline local dictionary fallback for FIFA's key language groups
-LOCAL_TRANSLATIONS = {
+# ---------------------------------------------------------------------------
+LOCAL_TRANSLATIONS: Dict[str, Dict[str, str]] = {
     "es": {  # Spanish
         "evacuate_prompt": "Atención: Por favor evacúe de inmediato desde {start} a través de {exit}. Avance con calma, no corra.",
         "blocked_prompt": "Aviso de congestión: El sector {gate} está bloqueado por incidente. Desviando flujo de personas.",
         "congestion_prompt": "Congestión detectada en {zone}. Reduzca la velocidad y siga las rutas de salida alternativas.",
         "all_safe": "Rutas de evacuación normales y estables. Proceda con precaución.",
-        "low_bandwidth": "ALERTA: Siga las señales de color verde para evacuar."
+        "low_bandwidth": "ALERTA: Siga las señales de color verde para evacuar.",
     },
     "fr": {  # French
         "evacuate_prompt": "Attention: Veuillez évacuer immédiatement depuis {start} via {exit}. Avancez calmement, ne courez pas.",
         "blocked_prompt": "Avis d'incident: L'accès {gate} est actuellement bloqué. Redirection du flux de personnes.",
         "congestion_prompt": "Congestion détectée en zone {zone}. Ralentissez et suivez les itinéraires alternatifs.",
         "all_safe": "Voies d'évacuation normales et stables. Veuillez circuler prudemment.",
-        "low_bandwidth": "ALERTE: Suivez les flèches vertes pour évacuer."
+        "low_bandwidth": "ALERTE: Suivez les flèches vertes pour évacuer.",
     },
     "pt": {  # Portuguese
         "evacuate_prompt": "Atenção: Por favor, evacue imediatamente do {start} pelo {exit}. Caminhe com calma, não corra.",
         "blocked_prompt": "Aviso de incidente: O portão {gate} está bloqueado. Redirecionando o fluxo de pessoas.",
         "congestion_prompt": "Congestionamento detectado na zona {zone}. Reduza a velocidade e siga as rotas alternativas.",
         "all_safe": "Rotas de evacuação normais e estáveis. Prossiga com cuidado.",
-        "low_bandwidth": "ALERTA: Siga as setas verdes para evacuar."
+        "low_bandwidth": "ALERTA: Siga as setas verdes para evacuar.",
     },
     "ar": {  # Arabic
         "evacuate_prompt": "تنبيه: يرجى الإخلاء فوراً من {start} عبر {exit}. تحرك بهدوء، لا تركض.",
         "blocked_prompt": "تنبيه حركة: البوابة {gate} مغلقة بسبب حادث. جاري إعادة توجيه المسارات.",
         "congestion_prompt": "تم رصد ازدحام في المنطقة {zone}. يرجى إبطاء السرعة واتباع طرق بديلة.",
         "all_safe": "مسارات الخروج طبيعية ومستقرة. تحرك بحذر.",
-        "low_bandwidth": "تنبيه: اتبع الإشارات الخضراء للإخلاء."
+        "low_bandwidth": "تنبيه: اتبع الإشارات الخضراء للإخلاء.",
     },
     "ja": {  # Japanese
         "evacuate_prompt": "警告：ただちに{start}から{exit}を通って避難してください。走らず、落ち着いて行動してください。",
         "blocked_prompt": "混雑・規制情報：{gate}は現在ブロックされています。避難ルートを再計算しています。",
         "congestion_prompt": "{zone}エリアで混雑を検知。速度を落とし、迂回ルートへ進んでください。",
         "all_safe": "避難ルートは現在正常です。足元に注意して進んでください。",
-        "low_bandwidth": "警告：緑色の避難表示・矢印に従って移動してください。"
+        "low_bandwidth": "警告：緑色の避難表示・矢印に従って移動してください。",
     },
     "en": {  # English (Default)
         "evacuate_prompt": "Attention: Please evacuate immediately from {start} via {exit}. Move calmly, do not run.",
         "blocked_prompt": "Congestion notice: Gate {gate} is currently blocked. Rerouting in progress.",
         "congestion_prompt": "High crowd density detected in {zone}. Please slow down and follow alternative routes.",
         "all_safe": "All evacuation routes are green. Proceed normally.",
-        "low_bandwidth": "ALERT: Follow green directional arrows to evacuate."
-    }
+        "low_bandwidth": "ALERT: Follow green directional arrows to evacuate.",
+    },
 }
 
 
+# ---------------------------------------------------------------------------
+# Dynamic guidance translation
+# ---------------------------------------------------------------------------
+
 async def generate_accessible_instructions(
-    event_type: str, 
-    start_zone: str, 
-    exit_gate: str, 
-    lang: str = "en"
+    event_type: str,
+    start_zone: str,
+    exit_gate: str,
+    lang: str = "en",
 ) -> str:
     """
-    Generates dynamic translated guidance.
-    Uses Gemini API if available, else falls back immediately to local dictionary.
+    Generate dynamic evacuation announcements for a specific seating zone.
+
+    If Google Gemini API is initialized and active, it translates the templates
+    with natural phrasing suited for emergency broadcasting. Otherwise, it falls
+    back immediately to the local dictionaries.
+
+    Parameters
+    ----------
+    event_type : str
+        Type of guidance: "evacuate" | "blocked" | "congestion".
+    start_zone : str
+        Zone name code from the stadium topology.
+    exit_gate : str
+        Target gate node name code.
+    lang : str
+        Target language code (e.g. "es", "fr", "en").
+
+    Returns
+    -------
+    str
+        Natural translated instruction string.
     """
     lang = lang.lower()
-    
+
     # Base English string construction
     if event_type == "evacuate":
-        text_template = LOCAL_TRANSLATIONS["en"]["evacuate_prompt"].format(start=start_zone, exit=exit_gate)
+        text_template = LOCAL_TRANSLATIONS["en"]["evacuate_prompt"].format(
+            start=start_zone, exit=exit_gate
+        )
     elif event_type == "blocked":
-        text_template = LOCAL_TRANSLATIONS["en"]["blocked_prompt"].format(gate=exit_gate)
+        text_template = LOCAL_TRANSLATIONS["en"]["blocked_prompt"].format(
+            gate=exit_gate
+        )
     elif event_type == "congestion":
-        text_template = LOCAL_TRANSLATIONS["en"]["congestion_prompt"].format(zone=start_zone)
+        text_template = LOCAL_TRANSLATIONS["en"]["congestion_prompt"].format(
+            zone=start_zone
+        )
     else:
         text_template = LOCAL_TRANSLATIONS["en"]["all_safe"]
 
@@ -95,7 +163,7 @@ async def generate_accessible_instructions(
         return text_template
 
     # Attempt to use Gemini for real-time translation and natural accessibility indexing
-    if GEMINI_AVAILABLE:
+    if GEMINI_AVAILABLE and gemini_model is not None:
         try:
             prompt = (
                 f"You are a professional, high-clarity emergency stadium broadcaster for the FIFA World Cup 2026. "
@@ -108,7 +176,10 @@ async def generate_accessible_instructions(
             if translated_text:
                 return translated_text
         except Exception as e:
-            logger.warning(f"Gemini API query failed: {e}. Reverting to local translations dictionary.")
+            logger.warning(
+                "Gemini API query failed: %s. Reverting to local translations dictionary.",
+                e,
+            )
 
     # Fallback to local high-speed translation lookup
     lang_dict = LOCAL_TRANSLATIONS.get(lang, LOCAL_TRANSLATIONS["en"])
@@ -127,15 +198,71 @@ async def generate_accessible_instructions(
 # ---------------------------------------------------------------------------
 
 # Offline keyword-based triage fallback
-TRIAGE_KEYWORDS = {
-    "Medical":    ["collapse", "faint", "heart", "injury", "blood", "ambulance", "hurt", "medical", "unconscious", "breathing", "seizure"],
-    "Security":   ["fight", "weapon", "threat", "aggress", "punch", "knife", "gun", "arrest", "suspicious", "bomb", "attack"],
-    "Structural": ["collapse", "crack", "ceiling", "wall", "structural", "barrier", "railing", "broken", "floor"],
-    "Crowd":      ["crush", "stampede", "overflow", "surge", "crowd", "packed", "congestion", "queue", "push", "fall"],
-    "Equipment":  ["turnstile", "scanner", "screen", "power", "outage", "failure", "broken", "stuck", "gate", "display"],
+TRIAGE_KEYWORDS: Dict[str, List[str]] = {
+    "Medical": [
+        "collapse",
+        "faint",
+        "heart",
+        "injury",
+        "blood",
+        "ambulance",
+        "hurt",
+        "medical",
+        "unconscious",
+        "breathing",
+        "seizure",
+    ],
+    "Security": [
+        "fight",
+        "weapon",
+        "threat",
+        "aggress",
+        "punch",
+        "knife",
+        "gun",
+        "arrest",
+        "suspicious",
+        "bomb",
+        "attack",
+    ],
+    "Structural": [
+        "collapse",
+        "crack",
+        "ceiling",
+        "wall",
+        "structural",
+        "barrier",
+        "railing",
+        "broken",
+        "floor",
+    ],
+    "Crowd": [
+        "crush",
+        "stampede",
+        "overflow",
+        "surge",
+        "crowd",
+        "packed",
+        "congestion",
+        "queue",
+        "push",
+        "fall",
+    ],
+    "Equipment": [
+        "turnstile",
+        "scanner",
+        "screen",
+        "power",
+        "outage",
+        "failure",
+        "broken",
+        "stuck",
+        "gate",
+        "display",
+    ],
 }
 
-SEVERITY_WORDS = {
+SEVERITY_WORDS: Dict[int, List[str]] = {
     5: ["critical", "emergency", "fatal", "death", "dying", "extreme", "immediate", "urgent"],
     4: ["serious", "severe", "dangerous", "major", "bad", "collapse", "unconscious"],
     3: ["moderate", "significant", "problem", "issue", "concern", "blocked", "injured"],
@@ -143,19 +270,19 @@ SEVERITY_WORDS = {
     1: ["info", "question", "unclear", "uncertain"],
 }
 
-TRIAGE_ACTIONS = {
-    "Medical":    "Dispatch first aid / medical response team immediately. Clear a path to the affected zone.",
-    "Security":   "Alert security personnel and nearby police units. Do not approach subject alone.",
+TRIAGE_ACTIONS: Dict[str, str] = {
+    "Medical": "Dispatch first aid / medical response team immediately. Clear a path to the affected zone.",
+    "Security": "Alert security personnel and nearby police units. Do not approach subject alone.",
     "Structural": "Evacuate affected zone immediately. Notify structural engineering team and stadium management.",
-    "Crowd":      "Activate crowd crush prevention protocol. Reroute nearby sections. Consider PA announcement.",
-    "Equipment":  "Dispatch stadium operations team. Manually open or redirect affected gate. Notify IT.",
+    "Crowd": "Activate crowd crush prevention protocol. Reroute nearby sections. Consider PA announcement.",
+    "Equipment": "Dispatch stadium operations team. Manually open or redirect affected gate. Notify IT.",
 }
 
 
-def _offline_triage(description: str) -> dict:
+def _offline_triage(description: str) -> Dict:
     """Keyword-matching fallback triage when Gemini is unavailable."""
     desc_lower = description.lower()
-    
+
     # Determine category
     category_scores = {cat: 0 for cat in TRIAGE_KEYWORDS}
     for cat, keywords in TRIAGE_KEYWORDS.items():
@@ -165,7 +292,7 @@ def _offline_triage(description: str) -> dict:
     category = max(category_scores, key=category_scores.get)
     if category_scores[category] == 0:
         category = "Crowd"  # default
-    
+
     # Determine severity
     severity = 2  # default
     for sev, words in sorted(SEVERITY_WORDS.items(), reverse=True):
@@ -176,25 +303,38 @@ def _offline_triage(description: str) -> dict:
         else:
             continue
         break
-    
+
     return {
         "category": category,
         "severity": severity,
-        "recommended_action": TRIAGE_ACTIONS.get(category, "Notify stadium operations immediately."),
+        "recommended_action": TRIAGE_ACTIONS.get(
+            category, "Notify stadium operations immediately."
+        ),
         "affected_zones": [],
         "confidence": "offline-fallback",
     }
 
 
-async def classify_incident(description: str) -> dict:
+async def classify_incident(description: str) -> Dict:
     """
-    AI Incident Triage Classifier (Feature #44).
-    Accepts a free-text incident description from stadium staff and returns
-    structured classification: category, severity (1–5), recommended action,
-    and affected zones. Uses Gemini with structured JSON output; falls back to
-    regex keyword matching for offline operation.
+    Classify a free-text incident description using Gemini AI.
+
+    Analyzes report details to return category classification, severity rating
+    (1 to 5), and recommended actions. Falls back automatically to offline
+    keyword rule matching if the Gemini connection fails.
+
+    Parameters
+    ----------
+    description : str
+        Raw plain-text incident description from a stadium staff user.
+
+    Returns
+    -------
+    Dict
+        Triage mapping with structure:
+        ``{category, severity, recommended_action, affected_zones, confidence}``
     """
-    if GEMINI_AVAILABLE:
+    if GEMINI_AVAILABLE and gemini_model is not None:
         try:
             prompt = (
                 "You are a stadium incident triage AI for the FIFA World Cup 2026. "
@@ -209,12 +349,14 @@ async def classify_incident(description: str) -> dict:
             response = await gemini_model.generate_content_async(prompt)
             raw = response.text.strip()
             # Extract JSON even if wrapped in markdown code fences
-            json_match = re.search(r'\{.*\}', raw, re.DOTALL)
+            json_match = re.search(r"\{.*\}", raw, re.DOTALL)
             if json_match:
                 return json.loads(json_match.group(0))
         except Exception as e:
-            logger.warning(f"Gemini triage failed: {e}. Using offline keyword classifier.")
-    
+            logger.warning(
+                "Gemini triage failed: %s. Using offline keyword classifier.", e
+            )
+
     return _offline_triage(description)
 
 
@@ -222,7 +364,7 @@ async def classify_incident(description: str) -> dict:
 # Feature #23 — RAG-Powered Fan Chatbot (In-Prompt RAG Context)
 # ---------------------------------------------------------------------------
 
-STADIUM_KNOWLEDGE_BASE = """
+STADIUM_KNOWLEDGE_BASE: str = """
 === SafePass 2026 Fan Knowledge Base ===
 STADIUM: FIFA World Cup 2026 Host Stadium, 70,000 capacity.
 GATES: Gate A1 & A2 (North entrance/exit), Gate B1 & B2 (East), Gate C1 & C2 (South), Gate D1 & D2 (West).
@@ -240,7 +382,7 @@ PROHIBITED: Smoking, alcohol outside designated zones, drones, professional came
 MEDICAL EMERGENCY: Press the red emergency button in the SafePass app or approach any steward in an orange vest. First response teams are stationed throughout.
 """
 
-CHATBOT_OFFLINE_RESPONSES = {
+CHATBOT_OFFLINE_RESPONSES: Dict[str, str] = {
     "exit": "Your nearest exit is the gate corresponding to your section. North sections → Gate A, East → Gate B, South → Gate C, West → Gate D.",
     "food": "Concession stands are located on all concourse rings. Halal options at Gate A2 and C1. Vegan at Gate D1.",
     "toilet": "Restrooms are on every concourse level, marked by blue signs. Accessible facilities at Wheelchair Zones East and West.",
@@ -253,29 +395,38 @@ CHATBOT_OFFLINE_RESPONSES = {
 }
 
 
-async def fan_chatbot_query(question: str, lang: str = "en", conversation_history: list = None) -> str:
+async def fan_chatbot_query(
+    question: str, lang: str = "en", conversation_history: Optional[List[Dict]] = None
+) -> str:
     """
-    RAG-Powered Fan Chatbot (Feature #23).
-    Uses Gemini with an in-prompt knowledge base as retrieval context (equivalent to
-    top-k RAG retrieval in production). Falls back to keyword matching offline.
-    
-    Args:
-        question: Fan's natural language question.
-        lang: ISO language code for response.
-        conversation_history: List of {role, text} dicts for context.
-    
-    Returns:
-        AI-generated answer grounded in the stadium knowledge base.
+    Query the grounded fan chatbot using the in-prompt stadium knowledge base.
+
+    Grounds responses in the context blocks to prevent hallucination. Falls
+    back to keyword response matching when offline or API limit is exceeded.
+
+    Parameters
+    ----------
+    question : str
+        Natural language question from a fan user.
+    lang : str
+        ISO language code to respond in.
+    conversation_history : List[Dict]
+        Previous dialogue history list of ``{role: str, text: str}`` dicts.
+
+    Returns
+    -------
+    str
+        Calm and helpful grounded response.
     """
-    if GEMINI_AVAILABLE:
+    if GEMINI_AVAILABLE and gemini_model is not None:
         try:
             history_str = ""
             if conversation_history:
                 for entry in conversation_history[-4:]:  # Last 4 exchanges for context
                     history_str += f"{entry['role'].upper()}: {entry['text']}\n"
-            
+
             lang_instruction = f" Respond in {lang} language." if lang != "en" else ""
-            
+
             prompt = (
                 f"You are SafePass 2026, a friendly and knowledgeable fan assistant for the FIFA World Cup 2026.\n"
                 f"Use ONLY the information in the knowledge base below to answer the fan's question.\n"
@@ -289,11 +440,11 @@ async def fan_chatbot_query(question: str, lang: str = "en", conversation_histor
             response = await gemini_model.generate_content_async(prompt)
             return response.text.strip()
         except Exception as e:
-            logger.warning(f"Gemini chatbot failed: {e}. Using offline responses.")
-    
+            logger.warning("Gemini chatbot failed: %s. Using offline responses.", e)
+
     # Offline keyword fallback
     q_lower = question.lower()
-    for kw, response in CHATBOT_OFFLINE_RESPONSES.items():
+    for kw, resp in CHATBOT_OFFLINE_RESPONSES.items():
         if kw in q_lower:
-            return response
+            return resp
     return CHATBOT_OFFLINE_RESPONSES["default"]
