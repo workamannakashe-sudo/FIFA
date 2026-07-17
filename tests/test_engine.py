@@ -5,7 +5,7 @@ Unit tests for the SafePass 2026 routing engine and LWR physics model.
 """
 
 import pytest
-from app.engine import StadiumGraph, Edge
+from app.engine import Edge
 
 
 @pytest.mark.parametrize(
