@@ -4,7 +4,6 @@ tests/test_integration.py
 Integration tests for SafePass 2026 REST and WebSocket APIs.
 """
 
-import pytest
 from app.config import STAFF_API_KEY
 
 

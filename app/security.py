@@ -21,7 +21,7 @@ import re
 import time
 from typing import Dict, Tuple
 
-from fastapi import Depends, Header, HTTPException, Request, Response
+from fastapi import Header, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
