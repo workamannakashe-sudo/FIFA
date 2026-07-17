@@ -200,3 +200,59 @@ def test_websocket_telemetry(test_client):
         websocket.send_text("ping")
         resp = websocket.receive_json()
         assert resp["type"] == "pong"
+
+
+def test_block_edge_endpoint(test_client):
+    """POST /api/block_edge blocks and unblocks a corridor."""
+    # Block corridor Section_101_Lower -> Concourse_North_1
+    post_data = {"source": "Section_101_Lower", "target": "Concourse_North_1", "is_blocked": True}
+    response = test_client.post("/api/block_edge", json=post_data)
+    assert response.status_code == 200
+    assert response.json()["status"] == "success"
+    
+    # Verify edge is blocked in status
+    status_resp = test_client.get("/api/status")
+    edge = [
+        e for e in status_resp.json()["edges"]
+        if (e["source"] == "Section_101_Lower" and e["target"] == "Concourse_North_1")
+        or (e["source"] == "Concourse_North_1" and e["target"] == "Section_101_Lower")
+    ][0]
+    assert edge["is_blocked"] is True
+
+    # Unblock corridor
+    post_data["is_blocked"] = False
+    response = test_client.post("/api/block_edge", json=post_data)
+    assert response.status_code == 200
+    assert response.json()["status"] == "success"
+    
+    # Verify edge is unblocked
+    status_resp = test_client.get("/api/status")
+    edge = [
+        e for e in status_resp.json()["edges"]
+        if (e["source"] == "Section_101_Lower" and e["target"] == "Concourse_North_1")
+        or (e["source"] == "Concourse_North_1" and e["target"] == "Section_101_Lower")
+    ][0]
+    assert edge["is_blocked"] is False
+
+
+def test_update_occupancy_endpoint(test_client):
+    """POST /api/update_occupancy sets edge occupancy for live congestion routing."""
+    # Set occupancy to 50
+    post_data = {"source": "Section_101_Lower", "target": "Concourse_North_1", "occupancy": 50.0}
+    response = test_client.post("/api/update_occupancy", json=post_data)
+    assert response.status_code == 200
+    assert response.json()["status"] == "success"
+    
+    # Verify occupancy in status
+    status_resp = test_client.get("/api/status")
+    edge = [
+        e for e in status_resp.json()["edges"]
+        if (e["source"] == "Section_101_Lower" and e["target"] == "Concourse_North_1")
+        or (e["source"] == "Concourse_North_1" and e["target"] == "Section_101_Lower")
+    ][0]
+    assert edge["occupancy"] == 50.0
+
+    # Reset occupancy
+    post_data["occupancy"] = 0.0
+    response = test_client.post("/api/update_occupancy", json=post_data)
+    assert response.status_code == 200
