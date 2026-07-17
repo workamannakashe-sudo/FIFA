@@ -21,7 +21,7 @@
             
             --text-primary: #F0F2F8;
             --text-secondary: #8B92A8;
-            --text-muted: #5B6478;
+            --text-muted: #8E96A8; /* Heightened contrast from #5B6478 for WCAG 2.1 AA 4.5:1 compliance */
             
             --accent-primary: #6366F1;
             --accent-secondary: #8B5CF6;
@@ -38,6 +38,26 @@
             --font-body: 'Plus Jakarta Sans', sans-serif;
             --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             --shadow-glow: 0 0 30px rgba(99, 102, 241, 0.12);
+        }
+
+        /* ─── SKIP TO CONTENT LINK ───────────────────────────────── */
+        .skip-link {
+            position: absolute;
+            top: -100px;
+            left: 0.5rem;
+            background: var(--accent-primary);
+            color: #FFFFFF;
+            padding: 0.6rem 1.2rem;
+            z-index: 10000;
+            font-weight: 700;
+            border-radius: 8px;
+            text-decoration: none;
+            transition: top 0.2s;
+            box-shadow: 0 4px 20px rgba(99, 102, 241, 0.5);
+        }
+        .skip-link:focus {
+            top: 0.5rem;
+            outline: 2px solid #FFFFFF;
         }
 
         /* ─── HIGH CONTRAST OVERRIDE ─────────────────────────────── */
@@ -431,14 +451,30 @@
             .arena-container { height: 500px; }
             #chatbot-panel { width: calc(100vw - 2rem); right: 1rem; bottom: 5.5rem; }
         }
+
+        /* ─── REDUCED MOTION OVERRIDE ────────────────────────────── */
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                animation: none !important;
+                transition: none !important;
+            }
+            .badge-live::before {
+                animation: none !important;
+            }
+            #emergency-toast.level-3 {
+                animation: none !important;
+            }
+        }
     </style>
 </head>
 <body>
+    <!-- Skip to Main Content Link for screen readers/keyboard navigation -->
+    <a href="#main-content" class="skip-link">Skip to main content</a>
 
     <!-- ═══════════════════ HEADER ═══════════════════ -->
     <header>
         <div class="header-brand">
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path d="M12 2L2 22H22L12 2Z" stroke="#6366F1" stroke-width="2" stroke-linejoin="round"/>
                 <path d="M12 9V15" stroke="#6366F1" stroke-width="2" stroke-linecap="round"/>
                 <path d="M12 18H12.01" stroke="#6366F1" stroke-width="2" stroke-linecap="round"/>
@@ -449,77 +485,77 @@
             </div>
         </div>
         <div class="header-controls">
-            <div id="ws-badge" class="badge-live">Telemetry Connected</div>
+            <div id="ws-badge" class="badge-live" role="status" aria-live="polite">Telemetry Connected</div>
         </div>
     </header>
 
     <!-- ═══════════════════ CRUSH ALERT BANNER ═══════════════════ -->
-    <div id="crush-alert-banner">
+    <div id="crush-alert-banner" role="alert" aria-live="assertive">
         <span class="crush-text" id="crush-banner-text">🚨 CRUSH RISK ALERT: Dangerous crowd density detected. Immediate action required.</span>
-        <span class="crush-dismiss" onclick="this.parentElement.classList.remove('show')">✕ Dismiss</span>
+        <span class="crush-dismiss" role="button" tabindex="0" onclick="this.parentElement.classList.remove('show')" onkeydown="if(event.key==='Enter'||event.key===' ') this.parentElement.classList.remove('show')" aria-label="Dismiss crush alert">✕ Dismiss</span>
     </div>
 
     <!-- ═══════════════════ EMERGENCY TOAST ═══════════════════ -->
-    <div id="emergency-toast">
+    <div id="emergency-toast" role="alert" aria-live="assertive" aria-atomic="true">
         <div class="toast-header">
             <span id="toast-level-badge" class="toast-level-badge">Level 1 — Alert</span>
-            <span class="toast-close" onclick="closeToast()">✕</span>
+            <span class="toast-close" role="button" tabindex="0" onclick="closeToast()" onkeydown="if(event.key==='Enter'||event.key===' ') closeToast()" aria-label="Close emergency alert">✕</span>
         </div>
         <div id="toast-message" class="toast-message">Alert message here.</div>
         <div id="toast-zone" class="toast-zone">Zone: Unknown</div>
     </div>
 
     <!-- ═══════════════════ KPI STATS BAR ═══════════════════ -->
-    <div class="stats-bar">
-        <div class="stat-card">
+    <section class="stats-bar" aria-label="Key Performance Indicators">
+        <div class="stat-card" tabindex="0" aria-label="System Latency: less than 10 milliseconds">
             <div class="stat-info">
                 <h3>System Latency</h3>
                 <p id="latency-val" style="color: var(--status-safe);">&lt; 10ms</p>
             </div>
-            <div class="stat-icon" style="color: var(--status-safe);">⚡</div>
+            <div class="stat-icon" style="color: var(--status-safe);" aria-hidden="true">⚡</div>
         </div>
-        <div class="stat-card">
+        <div class="stat-card" tabindex="0" id="stat-congestion-card">
             <div class="stat-info">
                 <h3>Congestion Risk</h3>
                 <p id="risk-val" style="color: var(--status-safe);">Normal</p>
             </div>
-            <div class="stat-icon" id="risk-icon">💚</div>
+            <div class="stat-icon" id="risk-icon" aria-hidden="true">💚</div>
         </div>
-        <div class="stat-card">
+        <div class="stat-card" tabindex="0" id="stat-bottlenecks-card">
             <div class="stat-info">
                 <h3>Active Bottlenecks</h3>
                 <p id="bottlenecks-count">0</p>
             </div>
-            <div class="stat-icon" style="color: var(--status-warning);">⚠️</div>
+            <div class="stat-icon" style="color: var(--status-warning);" aria-hidden="true">⚠️</div>
         </div>
-        <div class="stat-card">
+        <div class="stat-card" tabindex="0" id="stat-avg-evac-card">
             <div class="stat-info">
                 <h3>Avg Evac Time</h3>
                 <p id="avg-time-val" style="color: var(--accent-primary);">--</p>
             </div>
-            <div class="stat-icon" style="color: var(--accent-primary);">⏱️</div>
+            <div class="stat-icon" style="color: var(--accent-primary);" aria-hidden="true">⏱️</div>
         </div>
-        <div class="stat-card crush-card" id="crush-stat-card" style="cursor:pointer;" onclick="fetchCrushRisk()">
+        <div class="stat-card crush-card" id="crush-stat-card" role="button" tabindex="0" aria-label="Crush Risk: LOW. Click to refresh crush risk data." onclick="fetchCrushRisk()" onkeydown="if(event.key==='Enter'||event.key===' ') fetchCrushRisk()">
             <div class="stat-info">
                 <h3>Crush Risk</h3>
                 <p id="crush-val" style="color: var(--status-safe);">LOW</p>
             </div>
-            <div class="stat-icon" id="crush-icon">🟢</div>
+            <div class="stat-icon" id="crush-icon" aria-hidden="true">🟢</div>
         </div>
-        <div class="stat-card">
+        <div class="stat-card" tabindex="0" id="stat-audit-events-card">
             <div class="stat-info">
                 <h3>Audit Events</h3>
                 <p id="audit-count" style="color: var(--text-secondary);">0</p>
             </div>
-            <div class="stat-icon" style="color: var(--text-secondary);">🔐</div>
+            <div class="stat-icon" style="color: var(--text-secondary);" aria-hidden="true">🔐</div>
         </div>
-    </div>
+    </section>
 
     <!-- ═══════════════════ MAIN DASHBOARD GRID ═══════════════════ -->
-    <div class="dashboard-grid">
+    <main id="main-content" class="dashboard-grid" tabindex="-1">
 
         <!-- ════ LEFT PANEL ════ -->
-        <div class="panel">
+        <aside class="panel" aria-label="Simulation Settings and Controls">
             <!-- Demo Scenarios -->
             <div>
                 <div class="panel-title">
@@ -529,15 +565,15 @@
                     Inject preloaded high-density crowd states to test routing engine reactions.
                 </div>
                 <div style="display:flex; flex-direction:column; gap:0.6rem;">
-                    <button id="btn-normal" class="btn active" onclick="loadScenario('normal')">
+                    <button id="btn-normal" class="btn active" onclick="loadScenario('normal')" aria-label="Load normal flow scenario">
                         <span>🟢 Normal Flow</span>
                         <span style="font-size:0.7rem; opacity:0.75;">Post-Match</span>
                     </button>
-                    <button id="btn-bottleneck" class="btn" onclick="loadScenario('bottleneck')">
+                    <button id="btn-bottleneck" class="btn" onclick="loadScenario('bottleneck')" aria-label="Load Gate B Bottleneck scenario">
                         <span>🟡 Gate B Bottleneck</span>
                         <span style="font-size:0.7rem; color:var(--status-warning);">Scanner Fail</span>
                     </button>
-                    <button id="btn-emergency" class="btn" onclick="loadScenario('emergency')">
+                    <button id="btn-emergency" class="btn" onclick="loadScenario('emergency')" aria-label="Load Zone E Hazard scenario">
                         <span>🔴 Zone E Hazard</span>
                         <span style="font-size:0.7rem; color:var(--status-danger);">Fire Alert</span>
                     </button>
@@ -548,16 +584,16 @@
             <div class="card">
                 <div class="card-header">♿ Accessibility & Multi-Modal</div>
                 <div class="toggle-row">
-                    <span>High Contrast UI</span>
-                    <label class="switch"><input type="checkbox" id="contrast-toggle" onchange="toggleHighContrast()"><span class="slider"></span></label>
+                    <label for="contrast-toggle" style="cursor: pointer;">High Contrast UI</label>
+                    <label class="switch" aria-label="Toggle High Contrast UI"><input type="checkbox" id="contrast-toggle" onchange="toggleHighContrast()"><span class="slider"></span></label>
                 </div>
                 <div class="toggle-row">
-                    <span>Low Bandwidth Mode</span>
-                    <label class="switch"><input type="checkbox" id="bandwidth-toggle" onchange="toggleLowBandwidth()"><span class="slider"></span></label>
+                    <label for="bandwidth-toggle" style="cursor: pointer;">Low Bandwidth Mode</label>
+                    <label class="switch" aria-label="Toggle Low Bandwidth Mode"><input type="checkbox" id="bandwidth-toggle" onchange="toggleLowBandwidth()"><span class="slider"></span></label>
                 </div>
                 <div style="margin-top:0.5rem;">
-                    <label style="font-size:0.72rem; color:var(--text-secondary); display:block; margin-bottom:0.2rem;">Translation Language</label>
-                    <select id="lang-select" class="select-input" onchange="updateAnnouncement()">
+                    <label for="lang-select" style="font-size:0.72rem; color:var(--text-secondary); display:block; margin-bottom:0.2rem;">Translation Language</label>
+                    <select id="lang-select" class="select-input" onchange="updateAnnouncement()" aria-label="Select translation language for announcements">
                         <option value="en">🇬🇧 English</option>
                         <option value="es">🇪🇸 Español</option>
                         <option value="fr">🇫🇷 Français</option>
@@ -573,31 +609,31 @@
                 <div class="card-header" style="color: #FCA5A5;">🚨 Emergency Alert Command</div>
                 <div style="font-size:0.75rem; color:var(--text-secondary); margin-bottom:0.6rem;">Select level, zone, and dispatch alert to all connected devices.</div>
                 <div style="font-size:0.72rem; color:var(--text-muted); margin-bottom:0.35rem; text-transform: uppercase; font-weight: 600; letter-spacing: 0.3px;">Alert Level</div>
-                <div class="alert-level-grid" id="alert-level-grid">
-                    <div class="alert-level-btn selected-l1" data-level="1" onclick="selectAlertLevel(1)">
-                        <div>📢</div><div style="margin-top:2px;">Level 1</div><div style="font-size:0.65rem; opacity:0.8;">App Notify</div>
-                    </div>
-                    <div class="alert-level-btn" data-level="2" onclick="selectAlertLevel(2)">
-                        <div>📣</div><div style="margin-top:2px;">Level 2</div><div style="font-size:0.65rem; opacity:0.8;">PA + SMS</div>
-                    </div>
-                    <div class="alert-level-btn" data-level="3" onclick="selectAlertLevel(3)">
-                        <div>🔒</div><div style="margin-top:2px;">Level 3</div><div style="font-size:0.65rem; opacity:0.8;">Lockdown</div>
-                    </div>
+                <div class="alert-level-grid" id="alert-level-grid" role="group" aria-label="Emergency Alert Levels">
+                    <button class="alert-level-btn selected-l1" data-level="1" onclick="selectAlertLevel(1)" type="button" aria-label="Select alert level 1, App Notification">
+                        <span aria-hidden="true">📢</span><div style="margin-top:2px;">Level 1</div><div style="font-size:0.65rem; opacity:0.8;">App Notify</div>
+                    </button>
+                    <button class="alert-level-btn" data-level="2" onclick="selectAlertLevel(2)" type="button" aria-label="Select alert level 2, PA and SMS notification">
+                        <span aria-hidden="true">📣</span><div style="margin-top:2px;">Level 2</div><div style="font-size:0.65rem; opacity:0.8;">PA + SMS</div>
+                    </button>
+                    <button class="alert-level-btn" data-level="3" onclick="selectAlertLevel(3)" type="button" aria-label="Select alert level 3, Full Zone Lockdown">
+                        <span aria-hidden="true">🔒</span><div style="margin-top:2px;">Level 3</div><div style="font-size:0.65rem; opacity:0.8;">Lockdown</div>
+                    </button>
                 </div>
                 <div class="form-group" style="margin-bottom:0.5rem;">
-                    <label>Zone</label>
-                    <select id="alert-zone" class="select-input" style="font-size:0.8rem; padding:0.4rem;"></select>
+                    <label for="alert-zone">Zone</label>
+                    <select id="alert-zone" class="select-input" style="font-size:0.8rem; padding:0.4rem;" aria-label="Select zone for alert dispatch"></select>
                 </div>
                 <div class="form-group">
-                    <label>Message</label>
-                    <textarea id="alert-message" class="form-input" placeholder="Describe the emergency situation..." style="font-size:0.82rem; min-height:50px;">Emergency alert. Please follow staff instructions and evacuate calmly.</textarea>
+                    <label for="alert-message">Message</label>
+                    <textarea id="alert-message" class="form-input" placeholder="Describe the emergency situation..." style="font-size:0.82rem; min-height:50px;" aria-label="Emergency alert message content">Emergency alert. Please follow staff instructions and evacuate calmly.</textarea>
                 </div>
-                <button id="dispatch-alert-btn" class="btn-sm danger" style="width:100%; justify-content:center; padding:0.55rem;" onclick="dispatchAlert()">
+                <button id="dispatch-alert-btn" class="btn-sm danger" style="width:100%; justify-content:center; padding:0.55rem;" onclick="dispatchAlert()" aria-label="Dispatch emergency alert now">
                     🚨 Dispatch Alert
                 </button>
                 <div style="margin-top:0.65rem;">
                     <div style="font-size:0.72rem; color:var(--text-muted); margin-bottom:0.3rem; font-weight:600; text-transform:uppercase;">Recent Alerts</div>
-                    <div class="alert-history" id="alert-history"></div>
+                    <div class="alert-history" id="alert-history" aria-live="polite"></div>
                 </div>
             </div>
 
@@ -606,46 +642,49 @@
                 <div class="card-header">🛠️ Interactive Sandbox Editor</div>
                 <div style="font-size:0.75rem; color:var(--text-secondary); margin-bottom:0.45rem;">Click a corridor on the canvas to edit occupancy or toggle blockage.</div>
                 <div class="sandbox-controls">
-                    <div>Selected: <strong id="selected-connection-label" style="color:var(--accent-primary);">None</strong></div>
+                    <div aria-live="polite">Selected: <strong id="selected-connection-label" style="color:var(--accent-primary);">None</strong></div>
                     <div class="sandbox-row">
-                        <span>Occupancy:</span>
-                        <input type="range" id="sandbox-occupancy" class="sandbox-slider" min="0" max="300" value="0" disabled oninput="onSandboxOccupancyChange(this.value)">
-                        <span id="sandbox-occupancy-val">0</span>
+                        <label for="sandbox-occupancy" style="cursor: pointer;">Occupancy:</label>
+                        <input type="range" id="sandbox-occupancy" class="sandbox-slider" min="0" max="300" value="0" disabled oninput="onSandboxOccupancyChange(this.value)" aria-label="Adjust occupancy for selected corridor">
+                        <span id="sandbox-occupancy-val" aria-live="polite">0</span>
                     </div>
                     <div class="toggle-row" style="margin-bottom:0;">
-                        <span>Block Connection</span>
-                        <label class="switch"><input type="checkbox" id="sandbox-block" disabled onchange="onSandboxBlockToggle(this.checked)"><span class="slider"></span></label>
+                        <label for="sandbox-block" style="cursor: pointer;">Block Connection</label>
+                        <label class="switch" aria-label="Toggle corridor blockage"><input type="checkbox" id="sandbox-block" disabled onchange="onSandboxBlockToggle(this.checked)"><span class="slider"></span></label>
                     </div>
                 </div>
             </div>
-        </div>
+        </aside>
 
         <!-- ════ CENTER: CANVAS / LOW-BW VIEW ════ -->
-        <div class="arena-container" id="arena-box">
-            <canvas id="stadium-canvas"></canvas>
-            <div class="canvas-overlay">
+        <section class="arena-container" id="arena-box" aria-label="Interactive Stadium Map">
+            <canvas id="stadium-canvas" role="img" aria-label="Interactive stadium flow map displaying 36 seating zones, concourses, and exits. Click nodes to calculate routes, or corridors to edit occupancy." aria-describedby="stadium-canvas-desc"></canvas>
+            <div id="stadium-canvas-desc" style="position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0;">
+                Interactive map displaying current crowd density and blockages. Turn on Low Bandwidth Mode if you prefer a screen reader accessible table layout.
+            </div>
+            <div class="canvas-overlay" aria-hidden="true">
                 <div class="overlay-item"><div class="color-dot" style="background:var(--status-safe)"></div><span>Safe / Low Flow (0–30%)</span></div>
                 <div class="overlay-item"><div class="color-dot" style="background:var(--status-warning)"></div><span>Congested (30–100%)</span></div>
                 <div class="overlay-item"><div class="color-dot" style="background:var(--status-danger)"></div><span>Saturated (&gt;100%)</span></div>
                 <div class="overlay-item"><div class="color-dot" style="background:var(--status-blocked); border:1px dashed #fff;"></div><span>Blocked / Hazard</span></div>
                 <div style="font-size:0.68rem; color:var(--text-muted); margin-top:0.2rem;">Click any node to show optimal route.</div>
             </div>
-        </div>
+        </section>
 
-        <div class="low-bandwidth-view" id="text-view-box">
+        <section class="low-bandwidth-view" id="text-view-box" aria-label="Low Bandwidth Egress Telemetry">
             <h2 style="font-family:var(--font-title); font-size:1.2rem; font-weight:700;">Low Bandwidth Egress Telemetry</h2>
-            <div style="font-size:0.84rem; color:var(--status-danger); font-weight:700; display:none;" id="low-bandwidth-incident-banner">INCIDENT ACTIVE — REROUTING ENGAGED</div>
-            <table class="text-route-table">
+            <div style="font-size:0.84rem; color:var(--status-danger); font-weight:700; display:none;" id="low-bandwidth-incident-banner" role="alert" aria-live="assertive">INCIDENT ACTIVE — REROUTING ENGAGED</div>
+            <table class="text-route-table" aria-describedby="text-view-box">
                 <thead><tr><th>Stand / Zone</th><th>Recommended Egress Path</th><th>Est. Time</th></tr></thead>
                 <tbody id="text-route-table-body"></tbody>
             </table>
-        </div>
+        </section>
 
         <!-- ════ RIGHT PANEL ════ -->
-        <div class="panel">
+        <aside class="panel" aria-label="Egress Warnings, Crush Monitor and Audit Log">
 
             <!-- Dynamic Egress Warning + TTS -->
-            <div>
+            <div aria-live="polite">
                 <div class="panel-title"><span>📢 Dynamic Egress Warning</span></div>
                 <div class="announcement-box">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -653,15 +692,15 @@
                         <span id="announcement-status-badge" class="pill"></span>
                     </div>
                     <p class="announcement-text" id="announcement-text-content">Click a seating section on the map to generate AI-translated emergency instructions.</p>
-                    <button class="audio-btn" id="play-audio-btn" onclick="speakAnnouncement()" disabled>🔊 Speak Announcement</button>
+                    <button class="audio-btn" id="play-audio-btn" onclick="speakAnnouncement()" disabled aria-label="Speak evacuation announcement aloud">🔊 Speak Announcement</button>
                 </div>
             </div>
 
             <!-- Crowd Crush Risk Monitor -->
-            <div>
+            <div aria-live="polite">
                 <div class="panel-title">
                     <span>💥 Crush Risk Monitor</span>
-                    <button class="btn-sm" onclick="fetchCrushRisk()" id="crush-refresh-btn" style="padding:0.3rem 0.6rem; font-size:0.72rem;">↻ Refresh</button>
+                    <button class="btn-sm" onclick="fetchCrushRisk()" id="crush-refresh-btn" style="padding:0.3rem 0.6rem; font-size:0.72rem;" aria-label="Refresh crush risk data">↻ Refresh</button>
                 </div>
                 <div class="crush-risk-panel">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
@@ -677,7 +716,7 @@
             </div>
 
             <!-- Active Bottlenecks -->
-            <div>
+            <div aria-live="polite">
                 <div class="panel-title"><span>⚠️ Active Bottlenecks</span></div>
                 <div class="bottleneck-list" id="bottleneck-list-content">
                     <div style="font-size:0.78rem; color:var(--text-muted); text-align:center; padding:0.75rem 0;">No bottlenecks detected. All paths nominal.</div>
@@ -687,18 +726,18 @@
             <!-- AI Incident Triage -->
             <div class="card">
                 <div class="card-header">🤖 AI Incident Triage <span style="font-size:0.68rem; color:var(--text-muted); font-weight:400;">(Gemini + Offline Fallback)</span></div>
-                <div style="font-size:0.75rem; color:var(--text-secondary); margin-bottom:0.5rem;">Describe the incident in plain language. AI classifies category, severity, and recommended action.</div>
                 <div class="form-group">
+                    <label for="triage-input" style="font-size:0.75rem; color:var(--text-secondary); margin-bottom:0.5rem; display:block; line-height:1.4;">Describe the incident in plain language. AI classifies category, severity, and recommended action.</label>
                     <textarea id="triage-input" class="form-input" placeholder="e.g. Fan collapsed near Gate B2, unconscious, not breathing..." style="font-size:0.82rem; min-height:55px;"></textarea>
                 </div>
-                <button class="btn-sm warn" style="width:100%; justify-content:center;" onclick="runTriage()">🔍 Classify Incident</button>
-                <div class="triage-result" id="triage-result">
+                <button class="btn-sm warn" style="width:100%; justify-content:center;" onclick="runTriage()" aria-label="Classify incident using AI triage">🔍 Classify Incident</button>
+                <div class="triage-result" id="triage-result" aria-live="polite">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <div class="triage-category" id="triage-category">Medical</div>
                         <span id="triage-confidence" style="font-size:0.7rem; color:var(--text-muted);"></span>
                     </div>
                     <div style="font-size:0.75rem; color:var(--text-secondary); margin-bottom:0.25rem;">Severity (1 = Low → 5 = Critical)</div>
-                    <div class="severity-bar" id="severity-bar"></div>
+                    <div class="severity-bar" id="severity-bar" role="img" aria-label="Severity rating display"></div>
                     <div class="triage-action" id="triage-action"></div>
                 </div>
             </div>
@@ -707,10 +746,10 @@
             <div>
                 <div class="panel-title">
                     <span>🔐 Tamper-Evident Audit Log</span>
-                    <button class="btn-sm" onclick="verifyAuditChain()" style="padding:0.3rem 0.6rem; font-size:0.72rem;">✓ Verify Chain</button>
+                    <button class="btn-sm" onclick="verifyAuditChain()" style="padding:0.3rem 0.6rem; font-size:0.72rem;" aria-label="Verify audit log cryptographic integrity">✓ Verify Chain</button>
                 </div>
-                <div id="audit-verify-status" style="font-size:0.75rem; margin-bottom:0.5rem; display:none;"></div>
-                <div class="audit-list" id="audit-list">
+                <div id="audit-verify-status" style="font-size:0.75rem; margin-bottom:0.5rem; display:none;" aria-live="polite"></div>
+                <div class="audit-list" id="audit-list" aria-live="polite">
                     <div style="font-size:0.78rem; color:var(--text-muted); text-align:center; padding:0.5rem;">No audit events recorded yet.</div>
                 </div>
             </div>
@@ -719,14 +758,14 @@
             <div class="card">
                 <div class="card-header">🎫 Personal Egress Ticket <span style="font-size:0.68rem; color:var(--text-muted); font-weight:400;">(PII Masking Demo)</span></div>
                 <form id="fan-registration-form" onsubmit="registerFan(event)">
-                    <div class="form-group"><label>Full Name</label><input type="text" id="reg-name" class="form-input" placeholder="Jane Doe" required></div>
-                    <div class="form-group"><label>Email</label><input type="email" id="reg-email" class="form-input" placeholder="jane@example.com" required></div>
-                    <div class="form-group"><label>Phone</label><input type="tel" id="reg-phone" class="form-input" placeholder="+1-555-0199" required></div>
-                    <div class="form-group"><label>Ticket ID</label><input type="text" id="reg-ticket" class="form-input" placeholder="TKT-1049-US" required></div>
-                    <div class="form-group"><label>Seating Zone</label><select id="reg-zone" class="select-input"></select></div>
-                    <button type="submit" class="form-btn">Generate Secure Egress Ticket</button>
+                    <div class="form-group"><label for="reg-name">Full Name</label><input type="text" id="reg-name" class="form-input" placeholder="Jane Doe" required aria-label="Full Name"></div>
+                    <div class="form-group"><label for="reg-email">Email</label><input type="email" id="reg-email" class="form-input" placeholder="jane@example.com" required aria-label="Email Address"></div>
+                    <div class="form-group"><label for="reg-phone">Phone</label><input type="tel" id="reg-phone" class="form-input" placeholder="+1-555-0199" required aria-label="Phone Number"></div>
+                    <div class="form-group"><label for="reg-ticket">Ticket ID</label><input type="text" id="reg-ticket" class="form-input" placeholder="TKT-1049-US" required aria-label="Ticket Identifier"></div>
+                    <div class="form-group"><label for="reg-zone">Seating Zone</label><select id="reg-zone" class="select-input" aria-label="Select seating zone"></select></div>
+                    <button type="submit" class="form-btn" aria-label="Submit registration and generate secure egress ticket">Generate Secure Egress Ticket</button>
                 </form>
-                <div id="registration-result">
+                <div id="registration-result" aria-live="polite">
                     <div style="color:var(--status-safe); font-weight:700; font-size:0.82rem;">✅ Registration Successful</div>
                     <div>Name: <span id="res-name" style="font-weight:600;"></span></div>
                     <div>Email: <code id="res-email"></code> <span style="color:var(--status-blocked); font-size:0.65rem;">(MASKED PII)</span></div>
@@ -736,25 +775,25 @@
                     <div id="res-route" style="color:var(--accent-primary); font-family:monospace; font-size:0.8rem;"></div>
                 </div>
             </div>
-        </div>
-    </div>
+        </aside>
+    </main>
 
     <!-- ═══════════════════ CHATBOT WIDGET ═══════════════════ -->
-    <button id="chatbot-bubble" onclick="toggleChatbot()" title="SafePass AI Fan Assistant">💬</button>
-    <div id="chatbot-panel">
+    <button id="chatbot-bubble" onclick="toggleChatbot()" title="SafePass AI Fan Assistant" aria-label="Open SafePass AI Fan Assistant" aria-expanded="false">💬</button>
+    <div id="chatbot-panel" role="dialog" aria-label="SafePass AI Assistant Chat Panel">
         <div class="chatbot-header">
             <div>
                 <div class="chatbot-title">SafePass AI Assistant 🤖</div>
                 <div class="chatbot-subtitle">Powered by Gemini · FIFA 2026 Knowledge Base</div>
             </div>
-            <span class="chatbot-close" onclick="toggleChatbot()">✕</span>
+            <span class="chatbot-close" role="button" tabindex="0" onclick="toggleChatbot()" onkeydown="if(event.key==='Enter'||event.key===' ') toggleChatbot()" aria-label="Close chatbot panel">✕</span>
         </div>
-        <div class="chatbot-messages" id="chatbot-messages">
+        <div class="chatbot-messages" id="chatbot-messages" role="log" aria-live="polite">
             <div class="chat-msg bot">Hello! I'm your SafePass AI assistant for FIFA World Cup 2026. Ask me anything about the stadium — exits, food, first aid, transport, or safety!</div>
         </div>
         <div class="chatbot-input-row">
-            <input type="text" id="chatbot-input" class="chatbot-input" placeholder="Ask a question..." onkeydown="if(event.key==='Enter') sendChatMessage()">
-            <button class="chatbot-send" onclick="sendChatMessage()">▶</button>
+            <input type="text" id="chatbot-input" class="chatbot-input" placeholder="Ask a question..." aria-label="Type your message" onkeydown="if(event.key==='Enter') sendChatMessage()">
+            <button class="chatbot-send" onclick="sendChatMessage()" aria-label="Send message to assistant">▶</button>
         </div>
     </div>
 
@@ -1016,7 +1055,16 @@
         // ── Chatbot ───────────────────────────────────────────────
         function toggleChatbot() {
             chatbotOpen = !chatbotOpen;
-            document.getElementById("chatbot-panel").classList.toggle("open", chatbotOpen);
+            const bubble = document.getElementById("chatbot-bubble");
+            const panel = document.getElementById("chatbot-panel");
+            panel.classList.toggle("open", chatbotOpen);
+            bubble.setAttribute("aria-expanded", chatbotOpen ? "true" : "false");
+            
+            if (chatbotOpen) {
+                document.getElementById("chatbot-input").focus();
+            } else {
+                bubble.focus();
+            }
         }
 
         async function sendChatMessage() {
