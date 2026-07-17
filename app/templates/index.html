@@ -585,11 +585,11 @@
                 <div class="card-header">♿ Accessibility & Multi-Modal</div>
                 <div class="toggle-row">
                     <label for="contrast-toggle" style="cursor: pointer;">High Contrast UI</label>
-                    <label class="switch" aria-label="Toggle High Contrast UI"><input type="checkbox" id="contrast-toggle" onchange="toggleHighContrast()"><span class="slider"></span></label>
+                    <span class="switch"><input type="checkbox" id="contrast-toggle" onchange="toggleHighContrast()"><span class="slider"></span></span>
                 </div>
                 <div class="toggle-row">
                     <label for="bandwidth-toggle" style="cursor: pointer;">Low Bandwidth Mode</label>
-                    <label class="switch" aria-label="Toggle Low Bandwidth Mode"><input type="checkbox" id="bandwidth-toggle" onchange="toggleLowBandwidth()"><span class="slider"></span></label>
+                    <span class="switch"><input type="checkbox" id="bandwidth-toggle" onchange="toggleLowBandwidth()"><span class="slider"></span></span>
                 </div>
                 <div style="margin-top:0.5rem;">
                     <label for="lang-select" style="font-size:0.72rem; color:var(--text-secondary); display:block; margin-bottom:0.2rem;">Translation Language</label>
@@ -650,7 +650,7 @@
                     </div>
                     <div class="toggle-row" style="margin-bottom:0;">
                         <label for="sandbox-block" style="cursor: pointer;">Block Connection</label>
-                        <label class="switch" aria-label="Toggle corridor blockage"><input type="checkbox" id="sandbox-block" disabled onchange="onSandboxBlockToggle(this.checked)"><span class="slider"></span></label>
+                        <span class="switch"><input type="checkbox" id="sandbox-block" disabled onchange="onSandboxBlockToggle(this.checked)"><span class="slider"></span></span>
                     </div>
                 </div>
             </div>
