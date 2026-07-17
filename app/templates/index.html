@@ -584,12 +584,12 @@
             <div class="card">
                 <div class="card-header">♿ Accessibility & Multi-Modal</div>
                 <div class="toggle-row">
-                    <label for="contrast-toggle" style="cursor: pointer;">High Contrast UI</label>
-                    <span class="switch"><input type="checkbox" id="contrast-toggle" onchange="toggleHighContrast()"><span class="slider"></span></span>
+                    <span id="contrast-label" style="cursor: pointer;" onclick="document.getElementById('contrast-toggle').click()">High Contrast UI</span>
+                    <label class="switch" aria-labelledby="contrast-label"><input type="checkbox" id="contrast-toggle" onchange="toggleHighContrast()"><span class="slider"></span></label>
                 </div>
                 <div class="toggle-row">
-                    <label for="bandwidth-toggle" style="cursor: pointer;">Low Bandwidth Mode</label>
-                    <span class="switch"><input type="checkbox" id="bandwidth-toggle" onchange="toggleLowBandwidth()"><span class="slider"></span></span>
+                    <span id="bandwidth-label" style="cursor: pointer;" onclick="document.getElementById('bandwidth-toggle').click()">Low Bandwidth Mode</span>
+                    <label class="switch" aria-labelledby="bandwidth-label"><input type="checkbox" id="bandwidth-toggle" onchange="toggleLowBandwidth()"><span class="slider"></span></label>
                 </div>
                 <div style="margin-top:0.5rem;">
                     <label for="lang-select" style="font-size:0.72rem; color:var(--text-secondary); display:block; margin-bottom:0.2rem;">Translation Language</label>
@@ -649,8 +649,8 @@
                         <span id="sandbox-occupancy-val" aria-live="polite">0</span>
                     </div>
                     <div class="toggle-row" style="margin-bottom:0;">
-                        <label for="sandbox-block" style="cursor: pointer;">Block Connection</label>
-                        <span class="switch"><input type="checkbox" id="sandbox-block" disabled onchange="onSandboxBlockToggle(this.checked)"><span class="slider"></span></span>
+                        <span id="sandbox-block-label" style="cursor: pointer;" onclick="if(!document.getElementById('sandbox-block').disabled) document.getElementById('sandbox-block').click()">Block Connection</span>
+                        <label class="switch" aria-labelledby="sandbox-block-label"><input type="checkbox" id="sandbox-block" disabled onchange="onSandboxBlockToggle(this.checked)"><span class="slider"></span></label>
                     </div>
                 </div>
             </div>

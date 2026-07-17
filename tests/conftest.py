@@ -13,7 +13,7 @@ from app.engine import StadiumGraph
 @pytest.fixture(scope="module")
 def test_client():
     """Provides a module-scoped FastAPI TestClient instance."""
-    with TestClient(app, raise_server_exceptions=False) as client:
+    with TestClient(app) as client:
         yield client
 
 
