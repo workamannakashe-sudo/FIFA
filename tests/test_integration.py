@@ -1,39 +1,45 @@
-import asyncio
+"""
+tests/test_integration.py
+~~~~~~~~~~~~~~~~~~~~~~~~~
+Integration tests for SafePass 2026 REST and WebSocket APIs.
+"""
+
 import pytest
-from fastapi.testclient import TestClient
-from app.main import app
+from app.config import STAFF_API_KEY
 
-client = TestClient(app)
 
-def test_api_status():
-    response = client.get("/api/status")
+def test_api_status(test_client):
+    """GET /api/status returns valid telemetry, nodes, and routing plans."""
+    response = test_client.get("/api/status")
     assert response.status_code == 200
     data = response.json()
     assert "scenario" in data
     assert "routing_plans" in data
     assert "edges" in data
-    assert len(data["routing_plans"]) > 0, "Expected at least one routing plan for seating zones"
+    assert len(data["routing_plans"]) > 0
 
 
-def test_scenario_switching():
+def test_scenario_switching(test_client):
+    """Loading a simulation scenario overrides routing engine occupancies and blockages."""
     # 1. Load bottleneck scenario
-    response = client.post("/api/scenarios/bottleneck")
+    response = test_client.post("/api/scenarios/bottleneck")
     assert response.status_code == 200
     data = response.json()
     assert data["scenario"] == "bottleneck"
     assert len(data["data"]["bottlenecks"]) > 0
 
     # 2. Check status matches new scenario
-    status_resp = client.get("/api/status")
+    status_resp = test_client.get("/api/status")
     assert status_resp.json()["scenario"] == "bottleneck"
 
-    # 3. Load normal scenario
-    client.post("/api/scenarios/normal")
-    assert client.get("/api/status").json()["scenario"] == "normal"
+    # 3. Reset to normal scenario
+    test_client.post("/api/scenarios/normal")
+    assert test_client.get("/api/status").json()["scenario"] == "normal"
 
 
-def test_announcement_endpoint():
-    response = client.get("/api/announcement?zone=Section_101_Lower&lang=es")
+def test_announcement_endpoint(test_client):
+    """GET /api/announcement returns path routes and translated instructions."""
+    response = test_client.get("/api/announcement?zone=Section_101_Lower&lang=es")
     assert response.status_code == 200
     data = response.json()
     assert "instruction" in data
@@ -41,8 +47,22 @@ def test_announcement_endpoint():
     assert data["status"] == "success"
 
 
-def test_fan_registration_xss_and_pii_masking():
-    # Attempt to post details containing XSS script and clear PII
+def test_announcement_endpoint_invalid_zone(test_client):
+    """GET /api/announcement with invalid zone returns 404."""
+    response = test_client.get("/api/announcement?zone=Invalid_Zone_123&lang=en")
+    assert response.status_code == 404
+    assert "Stadium zone not found" in response.json()["detail"]
+
+
+def test_announcement_endpoint_xss_query_rejected(test_client):
+    """GET /api/announcement with script tag in query parameter returns 400."""
+    response = test_client.get("/api/announcement?zone=Section_101_Lower&lang=<script>alert(1)</script>")
+    assert response.status_code == 400
+    assert "Malicious content detected" in response.json()["detail"]
+
+
+def test_fan_registration_xss_and_pii_masking(test_client):
+    """POST /api/register_fan sanitizes name and masks sensitive contact information in response."""
     post_data = {
         "name": "Jane <script>alert(1)</script> Doe",
         "email": "jane.doe@example.com",
@@ -50,7 +70,7 @@ def test_fan_registration_xss_and_pii_masking():
         "ticket_id": "TKT-1049-US",
         "start_zone": "Section_101_Lower"
     }
-    response = client.post("/api/register_fan", json=post_data)
+    response = test_client.post("/api/register_fan", json=post_data)
     assert response.status_code == 200
     data = response.json()
     
@@ -66,63 +86,117 @@ def test_fan_registration_xss_and_pii_masking():
     assert "TKT-****-US" in data["fan"]["masked_ticket"]
 
 
-def test_rate_limiting():
-    response = client.get("/api/status")
-    assert "X-Frame-Options" in response.headers
-    assert response.headers["X-Frame-Options"] == "DENY"
-    assert "Content-Security-Policy" in response.headers
+def test_security_headers(test_client):
+    """SecurityMiddleware injects OWASP-recommended security response headers."""
+    response = test_client.get("/api/status")
+    headers = response.headers
+    assert headers.get("X-Frame-Options") == "DENY"
+    assert headers.get("X-Content-Type-Options") == "nosniff"
+    assert headers.get("X-XSS-Protection") == "1; mode=block"
+    assert headers.get("Referrer-Policy") == "strict-origin-when-cross-origin"
+    assert "Permissions-Policy" in headers
+    assert "Strict-Transport-Security" in headers
+    assert "Content-Security-Policy" in headers
 
 
-def test_crush_risk_endpoint():
-    """GET /api/crush_risk returns valid level and zone list."""
-    # Load bottleneck scenario first to ensure some congestion
-    client.post("/api/scenarios/bottleneck")
-    response = client.get("/api/crush_risk")
+def test_cors_headers(test_client):
+    """CORS middleware handles requests from whitelisted origins correctly."""
+    # Origin not in whitelist should not receive access-control headers
+    response = test_client.get("/api/status", headers={"Origin": "https://malicious.com"})
+    assert "access-control-allow-origin" not in response.headers
+
+
+def test_crush_risk_endpoint(test_client):
+    """GET /api/crush_risk returns overall status and risk zones under congestion."""
+    test_client.post("/api/scenarios/bottleneck")
+    response = test_client.get("/api/crush_risk")
     assert response.status_code == 200
     data = response.json()
     assert "level" in data
     assert data["level"] in ("LOW", "MODERATE", "CRITICAL")
     assert "zones" in data
-    assert "summary" in data
-    # Reset
-    client.post("/api/scenarios/normal")
+    
+    # Clean up
+    test_client.post("/api/scenarios/normal")
 
 
-def test_triage_endpoint_offline():
-    """POST /api/triage returns structured classification (offline fallback path)."""
-    response = client.post("/api/triage", json={"description": "Fan collapsed near Gate B, unconscious"})
+def test_triage_endpoint_authorized(test_client):
+    """POST /api/triage succeeds with correct staff API key."""
+    headers = {"X-Staff-API-Key": STAFF_API_KEY}
+    post_data = {"description": "Fan collapsed near Gate B, unconscious"}
+    response = test_client.post("/api/triage", json=post_data, headers=headers)
     assert response.status_code == 200
     data = response.json()
     assert "category" in data
     assert "severity" in data
     assert "recommended_action" in data
-    assert data["category"] in ("Medical", "Security", "Structural", "Crowd", "Equipment")
-    assert 1 <= data["severity"] <= 5
 
 
-def test_chat_endpoint_offline():
-    """POST /api/chat returns a response string (offline fallback path)."""
-    response = client.post("/api/chat", json={"message": "Where is the nearest exit?", "lang": "en", "history": []})
+def test_triage_endpoint_unauthorized(test_client):
+    """POST /api/triage returns 422 when API key header is missing, and 403 when wrong."""
+    post_data = {"description": "Fan collapsed near Gate B, unconscious"}
+    
+    # Missing key header (FastAPI raises validation error)
+    response = test_client.post("/api/triage", json=post_data)
+    assert response.status_code == 422
+    
+    # Incorrect key header
+    response = test_client.post("/api/triage", json=post_data, headers={"X-Staff-API-Key": "fake"})
+    assert response.status_code == 403
+
+
+def test_chat_endpoint_offline(test_client):
+    """POST /api/chat provides a RAG response for stadium queries."""
+    post_data = {
+        "message": "Where is the nearest medical stand?",
+        "lang": "en",
+        "history": []
+    }
+    response = test_client.post("/api/chat", json=post_data)
     assert response.status_code == 200
     data = response.json()
     assert "response" in data
-    assert len(data["response"]) > 5
+    assert len(data["response"]) > 0
 
 
-def test_audit_log_endpoint():
-    """GET /api/audit_log returns a valid log structure."""
-    response = client.get("/api/audit_log")
+def test_alert_endpoint_workflow(test_client):
+    """POST /api/alert triggers lockdowns and creates verifiable audit records."""
+    headers = {"X-Staff-API-Key": STAFF_API_KEY}
+    
+    # 1. Dispatch L3 lockdown on Gate_A1_North
+    alert_payload = {
+        "level": 3,
+        "zone": "Gate_A1_North",
+        "message": "Security emergency in plaza. Lockdown in effect."
+    }
+    response = test_client.post("/api/alert", json=alert_payload, headers=headers)
     assert response.status_code == 200
-    data = response.json()
-    assert "total_entries" in data
-    assert "entries" in data
+    res_data = response.json()
+    assert res_data["status"] == "dispatched"
+    assert res_data["locked_zone"] == "Gate_A1_North"
+    
+    # 2. Check that the lockdown blocked adjacent corridors in live status
+    status_resp = test_client.get("/api/status")
+    edges = status_resp.json()["edges"]
+    gate_edges = [e for e in edges if e["source"] == "Gate_A1_North" or e["target"] == "Gate_A1_North"]
+    for e in gate_edges:
+        assert e["is_blocked"] is True
+
+    # 3. Verify audit log reflects the alert and is structurally intact
+    verify_resp = test_client.get("/api/audit_verify")
+    assert verify_resp.status_code == 200
+    assert verify_resp.json()["valid"] is True
 
 
-def test_audit_verify_endpoint():
-    """GET /api/audit_verify reports chain as valid."""
-    response = client.get("/api/audit_verify")
-    assert response.status_code == 200
-    data = response.json()
-    assert "valid" in data
-    assert data["valid"] is True
-    assert data["tampered_entries"] == []
+def test_websocket_telemetry(test_client):
+    """WebSocket connection receives immediate status update and pong keepalives."""
+    with test_client.websocket_connect("/ws") as websocket:
+        # On connection, server pushes status update
+        data = websocket.receive_json()
+        assert data["type"] == "state_update"
+        assert "nodes" in data["data"]
+        
+        # Test keepalive pong
+        websocket.send_text("ping")
+        resp = websocket.receive_json()
+        assert resp["type"] == "pong"

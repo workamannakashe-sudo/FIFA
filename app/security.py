@@ -22,6 +22,7 @@ import time
 from typing import Dict, Tuple
 
 from fastapi import Depends, Header, HTTPException, Request, Response
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
 from app.config import MAX_REQUEST_BODY_KB, STAFF_API_KEY
@@ -212,9 +213,9 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         window_start, count = self._clients.get(client_ip, (now, 0))
         if now - window_start < self.rate_limit_window:
             if count >= self.rate_limit_max:
-                raise HTTPException(
+                return JSONResponse(
                     status_code=429,
-                    detail="Rate limit exceeded. Please retry after a minute.",
+                    content={"detail": "Rate limit exceeded. Please retry after a minute."},
                 )
             self._clients[client_ip] = (window_start, count + 1)
         else:
@@ -223,18 +224,18 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         # 2. Query-parameter XSS check
         for key, value in request.query_params.items():
             if sanitize_input(value) != value:
-                raise HTTPException(
+                return JSONResponse(
                     status_code=400,
-                    detail=f"Malicious content detected in query parameter '{key}'.",
+                    content={"detail": f"Malicious content detected in query parameter '{key}'."},
                 )
 
         # 3. Request body size limit (skip WebSocket upgrades & GET requests)
         if request.method not in ("GET", "HEAD", "OPTIONS"):
             content_length = request.headers.get("content-length")
             if content_length and int(content_length) > MAX_BODY_BYTES:
-                raise HTTPException(
+                return JSONResponse(
                     status_code=413,
-                    detail=f"Request body exceeds {MAX_REQUEST_BODY_KB} KB limit.",
+                    content={"detail": f"Request body exceeds {MAX_REQUEST_BODY_KB} KB limit."},
                 )
 
         response = await call_next(request)

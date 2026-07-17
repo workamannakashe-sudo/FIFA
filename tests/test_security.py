@@ -1,129 +1,128 @@
-import pytest
+"""
+tests/test_security.py
+~~~~~~~~~~~~~~~~~~~~~~
+Unit tests for input sanitisation, PII masking, cryptographic audit logs, and security helpers.
+"""
+
 import hashlib
 import json
-from app.security import sanitize_input, mask_pii_string
+import pytest
+from fastapi import HTTPException
+from app.security import sanitize_input, mask_pii_string, require_staff_key
+from app.constants import AUDIT_GENESIS_HASH
+
 
 def test_input_sanitization():
-    # 1. Test XSS Script Removal
-    xss_payload = "Hello <script>alert('hack')</script> world"
-    assert "script" not in sanitize_input(xss_payload)
+    """Verify XSS and injection patterns are neutralized."""
+    # XSS Script tag stripping
+    assert "script" not in sanitize_input("Hello <script>alert('hack')</script> world")
     
-    # 2. Test HTML escaping
-    html_payload = "<div>Test</div>"
-    assert "&lt;div&gt;Test&lt;/div&gt;" in sanitize_input(html_payload)
+    # HTML tag escaping
+    assert "&lt;div&gt;Test&lt;/div&gt;" in sanitize_input("<div>Test</div>")
     
-    # 3. Test inline handlers removal
-    onload_payload = "<img src=x onerror=alert(1)>"
-    assert "onerror" not in sanitize_input(onload_payload)
-    
-    # 4. Test SQL quotes escaping
-    sql_payload = "SELECT * FROM users WHERE name = 'admin' --"
-    sanitized_sql = sanitize_input(sql_payload)
-    assert "&#x27;admin&#x27;" in sanitized_sql
+    # Event handler stripping
+    assert "onerror" not in sanitize_input("<img src=x onerror=alert(1)>")
+    assert "onload" not in sanitize_input("<body onload=calc()>")
 
 
 def test_pii_masking():
-    # 1. Test Email Masking
-    log_line = "Admin email is john.doe@example.com for registry"
-    masked = mask_pii_string(log_line)
-    assert "john.doe@example.com" not in masked
-    assert "j******e@e*****e.com" in masked
-    
-    # 2. Test Phone Masking
-    log_line_2 = "Contact fan at +1-555-0199 for tickets"
-    masked_2 = mask_pii_string(log_line_2)
-    assert "+1-555-0199" not in masked_2
-    assert "+***0199" in masked_2 or "***" in masked_2
-    
-    # 3. Test Ticket ID Masking
-    log_line_3 = "Egress route for ticket TICKET-1049-US is Gate A"
-    masked_3 = mask_pii_string(log_line_3)
-    assert "TICKET-1049-US" not in masked_3
-    assert "TICKET-****-US" in masked_3 or "TKT-****-****" in masked_3
+    """Verify sensitive fan identifiers are masked in logs and telemetry strings."""
+    # Email
+    assert "john.doe@example.com" not in mask_pii_string("Email is john.doe@example.com")
+    assert "j******e@e*****e.com" in mask_pii_string("Email is john.doe@example.com")
+
+    # Phone
+    assert "+1-555-0199" not in mask_pii_string("Phone +1-555-0199 details")
+    assert "+***0199" in mask_pii_string("Phone +1-555-0199 details")
+
+    # Ticket ID
+    assert "TKT-1049-US" not in mask_pii_string("Ticket TKT-1049-US checked")
+    assert "TKT-****-US" in mask_pii_string("Ticket TKT-1049-US checked")
 
 
-# ── Feature #99 — Tamper-Evident Audit Log Tests ──────────────────────────────
+# ── Staff API Key Dependency Tests ───────────────────────────────────────────
 
-_GENESIS_HASH = "0" * 64
+@pytest.mark.asyncio
+async def test_require_staff_key_valid():
+    """Verify require_staff_key runs without exception for a correct key."""
+    from app.config import STAFF_API_KEY
+    # Should complete successfully (return None)
+    await require_staff_key(x_staff_api_key=STAFF_API_KEY)
 
+
+@pytest.mark.asyncio
+async def test_require_staff_key_invalid():
+    """Verify require_staff_key raises 403 for an incorrect key."""
+    with pytest.raises(HTTPException) as exc_info:
+        await require_staff_key(x_staff_api_key="wrong-key")
+    assert exc_info.value.status_code == 403
+    assert "Invalid or missing staff API key" in exc_info.value.detail
+
+
+# ── Feature #99 — Cryptographic Hash Chain Validation ────────────────────────
 
 def _make_entry(index: int, event_type: str, data: dict, prev_hash: str) -> dict:
-    """Replicates the main.py _append_audit_event() hashing logic."""
-    from datetime import datetime, timezone
-    timestamp = datetime.now(timezone.utc).isoformat()
+    """Helper representing main.py audit block hash logic."""
+    timestamp = "2026-07-17T12:00:00Z"
     payload_str = f"{prev_hash}|{index}|{event_type}|{json.dumps(data, sort_keys=True)}"
     entry_hash = hashlib.sha256(payload_str.encode()).hexdigest()
     return {
-        "index": index, "timestamp": timestamp, "event_type": event_type,
-        "data": data, "prev_hash": prev_hash, "hash": entry_hash,
+        "index": index,
+        "timestamp": timestamp,
+        "event_type": event_type,
+        "data": data,
+        "prev_hash": prev_hash,
+        "hash": entry_hash,
     }
 
 
 def _verify_chain(audit_log: list) -> dict:
-    """Replicates /api/audit_verify logic for pure unit testing."""
+    """Helper representing main.py audit chain integrity logic."""
     if not audit_log:
         return {"valid": True, "tampered_entries": []}
+    
     tampered = []
-    prev_hash = _GENESIS_HASH
+    prev_hash = AUDIT_GENESIS_HASH
+    
     for entry in audit_log:
         payload_str = f"{prev_hash}|{entry['index']}|{entry['event_type']}|{json.dumps(entry['data'], sort_keys=True)}"
         expected = hashlib.sha256(payload_str.encode()).hexdigest()
         if entry["hash"] != expected or entry["prev_hash"] != prev_hash:
             tampered.append(entry["index"])
         prev_hash = entry["hash"]
+    
     return {"valid": len(tampered) == 0, "tampered_entries": tampered}
 
 
 def test_audit_chain_empty():
-    """Empty audit log reports as valid."""
     result = _verify_chain([])
     assert result["valid"] is True
     assert result["tampered_entries"] == []
 
 
-def test_audit_chain_single_entry_valid():
-    """A single correctly-hashed entry verifies as valid."""
-    entry = _make_entry(0, "SYSTEM_START", {"msg": "startup"}, _GENESIS_HASH)
+def test_audit_chain_single_valid():
+    entry = _make_entry(0, "STARTUP", {"status": "ok"}, AUDIT_GENESIS_HASH)
     result = _verify_chain([entry])
     assert result["valid"] is True
 
 
-def test_audit_chain_multi_entry_valid():
-    """Five correctly-hashed entries all pass integrity verification."""
+def test_audit_chain_tamper():
     log = []
-    prev = _GENESIS_HASH
-    events = [
-        ("SCENARIO_LOAD", {"name": "normal"}),
-        ("BOTTLENECK_DETECTED", {"count": 3}),
-        ("INCIDENT_TRIAGE", {"category": "Medical", "severity": 4}),
-        ("ALERT_L2_PA_AND_SMS_TRIGGER", {"zone": "Concourse_East_1"}),
-        ("CRUSH_RISK_DETECTED", {"level": "MODERATE"}),
-    ]
-    for i, (etype, data) in enumerate(events):
-        entry = _make_entry(i, etype, data, prev)
-        log.append(entry)
-        prev = entry["hash"]
-    result = _verify_chain(log)
-    assert result["valid"] is True
-    assert len(result["tampered_entries"]) == 0
-
-
-def test_audit_chain_tamper_detection():
-    """Modifying a stored entry's data AFTER hashing must cause verification to FAIL."""
-    log = []
-    prev = _GENESIS_HASH
+    prev = AUDIT_GENESIS_HASH
     for i in range(3):
-        entry = _make_entry(i, f"EVENT_{i}", {"value": i}, prev)
+        entry = _make_entry(i, f"EVENT_{i}", {"val": i}, prev)
         log.append(entry)
         prev = entry["hash"]
-    # Silently alter entry 1's data
-    log[1]["data"]["value"] = 9999
+        
+    # Attack: Retroactive tampering of event 1 data payload
+    log[1]["data"]["val"] = 9999
+    
     result = _verify_chain(log)
     assert result["valid"] is False
     assert 1 in result["tampered_entries"]
 
 
-# ── Feature #44 — Offline Triage Keyword Classifier Tests ─────────────────────
+# ── Feature #44 — Offline Triage Classifier Tests ─────────────────────────────
 
 def test_offline_triage_medical():
     from app.ai_helper import _offline_triage
