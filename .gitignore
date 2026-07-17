@@ -8,11 +8,13 @@ __pycache__/
 .venv/
 venv/
 env/
-.env
 
-# Environment variables
+# ── Environment / Secrets (NEVER commit these) ────────────────────────────────
 .env
+.env.*
 *.env
+!.env.example
+# ─────────────────────────────────────────────────────────────────────────────
 
 # pytest cache
 .pytest_cache/
