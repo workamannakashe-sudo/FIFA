@@ -3,7 +3,7 @@ app/ai_helper.py
 ~~~~~~~~~~~~~~~~
 AI integration helper and fallback triage systems for SafePass 2026.
 
-Uses Google Gemini Pro (gemini-1.5-flash) to power:
+Uses Google Gemini (gemini-2.0-flash) via the ``google-genai`` SDK to power:
 1. Multilingual evacuation guide translation.
 2. Real-time incident report classification (triage).
 3. Grounded fan assistant queries (RAG chatbot).
@@ -18,9 +18,9 @@ from __future__ import annotations
 import json
 import logging
 import re
-from typing import Dict, List, Optional
+from typing import Optional
 
-import google.generativeai as genai
+import google.genai as genai
 
 from app.config import GEMINI_API_KEY
 
@@ -38,18 +38,17 @@ __all__ = [
 logger = logging.getLogger("safepass.ai")
 
 # ---------------------------------------------------------------------------
-# Initialize Gemini if API key is provided
+# Initialize google-genai client if API key is provided
 # ---------------------------------------------------------------------------
 GEMINI_AVAILABLE: bool = False
-gemini_model: Optional[genai.GenerativeModel] = None
+_gemini_client: Optional[genai.Client] = None
+_GEMINI_MODEL: str = "gemini-2.0-flash"
 
 if GEMINI_API_KEY:
     try:
-        genai.configure(api_key=GEMINI_API_KEY)
-        # Using gemini-1.5-flash as the fast, lightweight, and free tier model
-        gemini_model = genai.GenerativeModel("gemini-1.5-flash")
+        _gemini_client = genai.Client(api_key=GEMINI_API_KEY)
         GEMINI_AVAILABLE = True
-        logger.info("Google Gemini API successfully configured.")
+        logger.info("Google Gemini API successfully configured (google-genai SDK).")
     except Exception as e:
         logger.error(
             "Failed to initialize Google Gemini API: %s. Falling back to offline engine.",
@@ -61,7 +60,7 @@ else:
 # ---------------------------------------------------------------------------
 # High-quality offline local dictionary fallback for FIFA's key language groups
 # ---------------------------------------------------------------------------
-LOCAL_TRANSLATIONS: Dict[str, Dict[str, str]] = {
+LOCAL_TRANSLATIONS: dict[str, dict[str, str]] = {
     "es": {  # Spanish
         "evacuate_prompt": "Atención: Por favor evacúe de inmediato desde {start} a través de {exit}. Avance con calma, no corra.",
         "blocked_prompt": "Aviso de congestión: El sector {gate} está bloqueado por incidente. Desviando flujo de personas.",
@@ -163,7 +162,7 @@ async def generate_accessible_instructions(
         return text_template
 
     # Attempt to use Gemini for real-time translation and natural accessibility indexing
-    if GEMINI_AVAILABLE and gemini_model is not None:
+    if GEMINI_AVAILABLE and _gemini_client is not None:
         try:
             prompt = (
                 f"You are a professional, high-clarity emergency stadium broadcaster for the FIFA World Cup 2026. "
@@ -171,7 +170,9 @@ async def generate_accessible_instructions(
                 f"Keep the instructions concise and easy to read. Output ONLY the translated text, with no extra commentary:\n"
                 f"'{text_template}'"
             )
-            response = await gemini_model.generate_content_async(prompt)
+            response = await _gemini_client.aio.models.generate_content(
+                model=_GEMINI_MODEL, contents=prompt
+            )
             translated_text = response.text.strip()
             if translated_text:
                 return translated_text
@@ -198,7 +199,7 @@ async def generate_accessible_instructions(
 # ---------------------------------------------------------------------------
 
 # Offline keyword-based triage fallback
-TRIAGE_KEYWORDS: Dict[str, List[str]] = {
+TRIAGE_KEYWORDS: dict[str, list[str]] = {
     "Medical": [
         "collapse",
         "faint",
@@ -262,7 +263,7 @@ TRIAGE_KEYWORDS: Dict[str, List[str]] = {
     ],
 }
 
-SEVERITY_WORDS: Dict[int, List[str]] = {
+SEVERITY_WORDS: dict[int, list[str]] = {
     5: ["critical", "emergency", "fatal", "death", "dying", "extreme", "immediate", "urgent"],
     4: ["serious", "severe", "dangerous", "major", "bad", "collapse", "unconscious"],
     3: ["moderate", "significant", "problem", "issue", "concern", "blocked", "injured"],
@@ -270,7 +271,7 @@ SEVERITY_WORDS: Dict[int, List[str]] = {
     1: ["info", "question", "unclear", "uncertain"],
 }
 
-TRIAGE_ACTIONS: Dict[str, str] = {
+TRIAGE_ACTIONS: dict[str, str] = {
     "Medical": "Dispatch first aid / medical response team immediately. Clear a path to the affected zone.",
     "Security": "Alert security personnel and nearby police units. Do not approach subject alone.",
     "Structural": "Evacuate affected zone immediately. Notify structural engineering team and stadium management.",
@@ -279,7 +280,7 @@ TRIAGE_ACTIONS: Dict[str, str] = {
 }
 
 
-def _offline_triage(description: str) -> Dict:
+def _offline_triage(description: str) -> dict:
     """Keyword-matching fallback triage when Gemini is unavailable."""
     desc_lower = description.lower()
 
@@ -315,7 +316,7 @@ def _offline_triage(description: str) -> Dict:
     }
 
 
-async def classify_incident(description: str) -> Dict:
+async def classify_incident(description: str) -> dict:
     """
     Classify a free-text incident description using Gemini AI.
 
@@ -330,11 +331,11 @@ async def classify_incident(description: str) -> Dict:
 
     Returns
     -------
-    Dict
+    dict
         Triage mapping with structure:
         ``{category, severity, recommended_action, affected_zones, confidence}``
     """
-    if GEMINI_AVAILABLE and gemini_model is not None:
+    if GEMINI_AVAILABLE and _gemini_client is not None:
         try:
             prompt = (
                 "You are a stadium incident triage AI for the FIFA World Cup 2026. "
@@ -346,7 +347,9 @@ async def classify_incident(description: str) -> Dict:
                 "\"confidence\": \"high|medium|low\"}\n\n"
                 f"Incident Report: \"{description}\""
             )
-            response = await gemini_model.generate_content_async(prompt)
+            response = await _gemini_client.aio.models.generate_content(
+                model=_GEMINI_MODEL, contents=prompt
+            )
             raw = response.text.strip()
             # Extract JSON even if wrapped in markdown code fences
             json_match = re.search(r"\{.*\}", raw, re.DOTALL)
@@ -382,7 +385,7 @@ PROHIBITED: Smoking, alcohol outside designated zones, drones, professional came
 MEDICAL EMERGENCY: Press the red emergency button in the SafePass app or approach any steward in an orange vest. First response teams are stationed throughout.
 """
 
-CHATBOT_OFFLINE_RESPONSES: Dict[str, str] = {
+CHATBOT_OFFLINE_RESPONSES: dict[str, str] = {
     "exit": "Your nearest exit is the gate corresponding to your section. North sections → Gate A, East → Gate B, South → Gate C, West → Gate D.",
     "food": "Concession stands are located on all concourse rings. Halal options at Gate A2 and C1. Vegan at Gate D1.",
     "toilet": "Restrooms are on every concourse level, marked by blue signs. Accessible facilities at Wheelchair Zones East and West.",
@@ -396,7 +399,7 @@ CHATBOT_OFFLINE_RESPONSES: Dict[str, str] = {
 
 
 async def fan_chatbot_query(
-    question: str, lang: str = "en", conversation_history: Optional[List[Dict]] = None
+    question: str, lang: str = "en", conversation_history: list[dict] | None = None
 ) -> str:
     """
     Query the grounded fan chatbot using the in-prompt stadium knowledge base.
@@ -410,7 +413,7 @@ async def fan_chatbot_query(
         Natural language question from a fan user.
     lang : str
         ISO language code to respond in.
-    conversation_history : List[Dict]
+    conversation_history : list[dict] | None
         Previous dialogue history list of ``{role: str, text: str}`` dicts.
 
     Returns
@@ -418,7 +421,7 @@ async def fan_chatbot_query(
     str
         Calm and helpful grounded response.
     """
-    if GEMINI_AVAILABLE and gemini_model is not None:
+    if GEMINI_AVAILABLE and _gemini_client is not None:
         try:
             history_str = ""
             if conversation_history:
@@ -437,7 +440,9 @@ async def fan_chatbot_query(
                 f"FAN: {question}\n"
                 f"SAFEPASS ASSISTANT:"
             )
-            response = await gemini_model.generate_content_async(prompt)
+            response = await _gemini_client.aio.models.generate_content(
+                model=_GEMINI_MODEL, contents=prompt
+            )
             return response.text.strip()
         except Exception as e:
             logger.warning("Gemini chatbot failed: %s. Using offline responses.", e)

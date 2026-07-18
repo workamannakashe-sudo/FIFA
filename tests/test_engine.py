@@ -172,3 +172,58 @@ def test_bottlenecks_blocked_nodes(clean_graph):
     bottlenecks = g.get_bottlenecks()
     assert len(bottlenecks) == 1
     assert bottlenecks[0]["is_blocked"] is True
+
+
+# ── Additional Coverage Tests ─────────────────────────────────────────────────
+
+def test_bottlenecks_high_occupancy(clean_graph):
+    """Verify corridors with high occupancy ratio (non-blocked) appear in bottlenecks."""
+    g = clean_graph
+    g.add_node("Exit1", is_exit=True)
+    g.add_node("Stand")
+    g.add_edge("Stand", "Exit1", length=10.0, capacity=100.0)
+    # Set occupancy to 150% of capacity to exceed BOTTLENECK_OCCUPANCY_THRESHOLD (1.2)
+    g.update_edge_occupancy("Stand", "Exit1", 150.0)
+
+    bottlenecks = g.get_bottlenecks()
+    assert len(bottlenecks) == 1
+    assert bottlenecks[0]["is_blocked"] is False
+    assert bottlenecks[0]["ratio"] >= 1.2
+
+
+def test_reset_congestion(simple_evac_graph):
+    """Verify reset_congestion clears all occupancy and blockage state to zero."""
+    g = simple_evac_graph
+    g.update_edge_occupancy("Stand_A", "Concourse_1", 80.0)
+    g.set_edge_blocked("Concourse_1", "Exit_1", True)
+
+    # Confirm state was applied
+    assert g.adj["Stand_A"]["Concourse_1"].occupancy == 80.0
+    assert g.adj["Concourse_1"]["Exit_1"].is_blocked is True
+
+    # After reset, all edges should be clear
+    g.reset_congestion()
+    for src in g.adj:
+        for edge in g.adj[src].values():
+            assert edge.occupancy == 0.0
+            assert edge.is_blocked is False
+
+
+def test_add_node_idempotent(clean_graph):
+    """Verify add_node is idempotent — calling it twice does not duplicate the node."""
+    g = clean_graph
+    g.add_node("NodeA", is_exit=False)
+    g.add_node("NodeA", is_exit=True)  # Second call promotes to exit
+
+    assert len([n for n in g.nodes if n == "NodeA"]) == 1
+    assert "NodeA" in g.exits
+
+
+def test_update_edge_occupancy_clamped_negative(clean_graph):
+    """Verify negative occupancy values are clamped to 0.0 by update_edge_occupancy."""
+    g = clean_graph
+    g.add_node("Exit1", is_exit=True)
+    g.add_node("Stand")
+    g.add_edge("Stand", "Exit1", length=5.0, capacity=100.0)
+    g.update_edge_occupancy("Stand", "Exit1", -50.0)
+    assert g.adj["Stand"]["Exit1"].occupancy == 0.0

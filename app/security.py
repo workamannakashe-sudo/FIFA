@@ -19,7 +19,6 @@ import html
 import logging
 import re
 import time
-from typing import Dict, Tuple
 
 from fastapi import Header, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
@@ -199,7 +198,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         self.rate_limit_max = rate_limit_max
         self.rate_limit_window = rate_limit_window
         # client_ip → (window_start_timestamp, request_count)
-        self._clients: Dict[str, Tuple[float, int]] = {}
+        self._clients: dict[str, tuple[float, int]] = {}
 
     async def dispatch(
         self, request: Request, call_next: RequestResponseEndpoint
@@ -213,9 +212,11 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         window_start, count = self._clients.get(client_ip, (now, 0))
         if now - window_start < self.rate_limit_window:
             if count >= self.rate_limit_max:
+                retry_after = int(self.rate_limit_window - (now - window_start)) + 1
                 return JSONResponse(
                     status_code=429,
                     content={"detail": "Rate limit exceeded. Please retry after a minute."},
+                    headers={"Retry-After": str(retry_after)},
                 )
             self._clients[client_ip] = (window_start, count + 1)
         else:

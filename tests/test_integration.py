@@ -72,10 +72,10 @@ def test_fan_registration_xss_and_pii_masking(test_client):
     response = test_client.post("/api/register_fan", json=post_data)
     assert response.status_code == 200
     data = response.json()
-    
+
     # 1. Assert XSS scripting is sanitized out of the output name
     assert "<script>" not in data["fan"]["name"]
-    
+
     # 2. Assert PII elements are masked
     assert "jane.doe@example.com" not in data["fan"]["masked_email"]
     assert "j******e@e*****e.com" in data["fan"]["masked_email"]
@@ -114,7 +114,7 @@ def test_crush_risk_endpoint(test_client):
     assert "level" in data
     assert data["level"] in ("LOW", "MODERATE", "CRITICAL")
     assert "zones" in data
-    
+
     # Clean up
     test_client.post("/api/scenarios/normal")
 
@@ -134,11 +134,11 @@ def test_triage_endpoint_authorized(test_client):
 def test_triage_endpoint_unauthorized(test_client):
     """POST /api/triage returns 422 when API key header is missing, and 403 when wrong."""
     post_data = {"description": "Fan collapsed near Gate B, unconscious"}
-    
+
     # Missing key header (FastAPI raises validation error)
     response = test_client.post("/api/triage", json=post_data)
     assert response.status_code == 422
-    
+
     # Incorrect key header
     response = test_client.post("/api/triage", json=post_data, headers={"X-Staff-API-Key": "fake"})
     assert response.status_code == 403
@@ -161,7 +161,7 @@ def test_chat_endpoint_offline(test_client):
 def test_alert_endpoint_workflow(test_client):
     """POST /api/alert triggers lockdowns and creates verifiable audit records."""
     headers = {"X-Staff-API-Key": STAFF_API_KEY}
-    
+
     # 1. Dispatch L3 lockdown on Gate_A1_North
     alert_payload = {
         "level": 3,
@@ -173,7 +173,7 @@ def test_alert_endpoint_workflow(test_client):
     res_data = response.json()
     assert res_data["status"] == "dispatched"
     assert res_data["locked_zone"] == "Gate_A1_North"
-    
+
     # 2. Check that the lockdown blocked adjacent corridors in live status
     status_resp = test_client.get("/api/status")
     edges = status_resp.json()["edges"]
@@ -194,7 +194,7 @@ def test_websocket_telemetry(test_client):
         data = websocket.receive_json()
         assert data["type"] == "state_update"
         assert "nodes" in data["data"]
-        
+
         # Test keepalive pong
         websocket.send_text("ping")
         resp = websocket.receive_json()
@@ -208,7 +208,7 @@ def test_block_edge_endpoint(test_client):
     response = test_client.post("/api/block_edge", json=post_data)
     assert response.status_code == 200
     assert response.json()["status"] == "success"
-    
+
     # Verify edge is blocked in status
     status_resp = test_client.get("/api/status")
     edge = [
@@ -223,7 +223,7 @@ def test_block_edge_endpoint(test_client):
     response = test_client.post("/api/block_edge", json=post_data)
     assert response.status_code == 200
     assert response.json()["status"] == "success"
-    
+
     # Verify edge is unblocked
     status_resp = test_client.get("/api/status")
     edge = [
@@ -241,7 +241,7 @@ def test_update_occupancy_endpoint(test_client):
     response = test_client.post("/api/update_occupancy", json=post_data)
     assert response.status_code == 200
     assert response.json()["status"] == "success"
-    
+
     # Verify occupancy in status
     status_resp = test_client.get("/api/status")
     edge = [
@@ -255,3 +255,122 @@ def test_update_occupancy_endpoint(test_client):
     post_data["occupancy"] = 0.0
     response = test_client.post("/api/update_occupancy", json=post_data)
     assert response.status_code == 200
+
+
+# ── Additional Coverage Tests ──────────────────────────────────────────────────
+
+def test_health_endpoint(test_client):
+    """GET /api/health returns 200 with service status and operational metadata."""
+    response = test_client.get("/api/health")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "ok"
+    assert data["service"] == "SafePass 2026"
+    assert "audit_entries" in data
+    assert "active_ws_connections" in data
+
+
+def test_audit_log_endpoint(test_client):
+    """GET /api/audit_log returns audit entries with correct structure."""
+    response = test_client.get("/api/audit_log")
+    assert response.status_code == 200
+    data = response.json()
+    assert "total_entries" in data
+    assert "entries" in data
+    assert isinstance(data["entries"], list)
+    assert data["total_entries"] >= 1  # At least SYSTEM_START entry
+
+
+def test_audit_log_limit_parameter(test_client):
+    """GET /api/audit_log respects the limit query parameter."""
+    response = test_client.get("/api/audit_log?limit=1")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["entries"]) <= 1
+
+
+def test_audit_verify_endpoint(test_client):
+    """GET /api/audit_verify confirms the hash chain is tamper-free."""
+    response = test_client.get("/api/audit_verify")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["valid"] is True
+    assert data["verified_count"] >= 1
+    assert data["tampered_entries"] == []
+    assert "chain_tip_hash" in data
+
+
+def test_load_scenario_not_found(test_client):
+    """POST /api/scenarios/{name} with unknown scenario name returns 404."""
+    response = test_client.post("/api/scenarios/nonexistent_scenario_xyz")
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"].lower()
+
+
+def test_register_fan_invalid_zone(test_client):
+    """POST /api/register_fan with an invalid start_zone returns 404."""
+    post_data = {
+        "name": "Test Fan",
+        "email": "test@example.com",
+        "phone": "+1-555-9999",
+        "ticket_id": "TKT-9999-US",
+        "start_zone": "InvalidZone_XYZ_999",
+    }
+    response = test_client.post("/api/register_fan", json=post_data)
+    assert response.status_code == 404
+    assert "zone" in response.json()["detail"].lower()
+
+
+def test_update_occupancy_invalid_nodes(test_client):
+    """POST /api/update_occupancy with invalid node names returns 404."""
+    post_data = {"source": "NonExistentNode_A", "target": "NonExistentNode_B", "occupancy": 50.0}
+    response = test_client.post("/api/update_occupancy", json=post_data)
+    assert response.status_code == 404
+
+
+def test_block_edge_invalid_nodes(test_client):
+    """POST /api/block_edge with invalid node names returns 404."""
+    post_data = {"source": "BadNode_X", "target": "BadNode_Y", "is_blocked": True}
+    response = test_client.post("/api/block_edge", json=post_data)
+    assert response.status_code == 404
+
+
+def test_chat_invalid_language(test_client):
+    """POST /api/chat with an unsupported language code returns 422 validation error."""
+    post_data = {
+        "message": "Where is the exit?",
+        "lang": "xx",  # not in SUPPORTED_ISO_LANGS
+        "history": [],
+    }
+    response = test_client.post("/api/chat", json=post_data)
+    assert response.status_code == 422
+
+
+def test_chat_with_conversation_history(test_client):
+    """POST /api/chat with conversation history returns a coherent response."""
+    post_data = {
+        "message": "And what about food options?",
+        "lang": "en",
+        "history": [
+            {"role": "fan", "text": "Where is the first aid station?"},
+            {"role": "assistant", "text": "First Aid is at Concourse North, South and West."},
+        ],
+    }
+    response = test_client.post("/api/chat", json=post_data)
+    assert response.status_code == 200
+    data = response.json()
+    assert "response" in data
+    assert len(data["response"]) > 0
+
+
+def test_list_scenarios_endpoint(test_client):
+    """GET /api/scenarios returns a list of available scenarios with required fields."""
+    response = test_client.get("/api/scenarios")
+    assert response.status_code == 200
+    scenarios = response.json()
+    assert isinstance(scenarios, list)
+    assert len(scenarios) > 0
+    for s in scenarios:
+        assert "id" in s
+        assert "title" in s
+        assert "description" in s

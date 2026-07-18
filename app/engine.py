@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import heapq
 import logging
-from typing import Dict, List, Optional, Set, Tuple
 
 from app.constants import (
     BOTTLENECK_OCCUPANCY_THRESHOLD,
@@ -207,7 +206,7 @@ class StadiumGraph:
 
     def calculate_evacuation_routes(
         self, start_node: str
-    ) -> Tuple[List[str], float]:
+    ) -> tuple[list[str], float]:
         """
         Compute the optimal evacuation path from *start_node* to the nearest
         available exit using congestion-aware Dijkstra's algorithm.
@@ -232,12 +231,12 @@ class StadiumGraph:
             logger.warning("calculate_evacuation_routes: unknown node %r", start_node)
             return [], float("inf")
 
-        distances: Dict[str, float] = {n: float("inf") for n in self.nodes}
+        distances: dict[str, float] = {n: float("inf") for n in self.nodes}
         distances[start_node] = 0.0
-        predecessors: Dict[str, Optional[str]] = {n: None for n in self.nodes}
-        pq: List[Tuple[float, str]] = [(0.0, start_node)]
-        visited: Set[str] = set()
-        nearest_exit: Optional[str] = None
+        predecessors: dict[str, str | None] = {n: None for n in self.nodes}
+        pq: list[tuple[float, str]] = [(0.0, start_node)]
+        visited: set[str] = set()
+        nearest_exit: str | None = None
         min_exit_dist: float = float("inf")
 
         while pq:
@@ -268,8 +267,8 @@ class StadiumGraph:
             return [], float("inf")
 
         # Reconstruct path by following predecessor chain backwards.
-        path: List[str] = []
-        curr: Optional[str] = nearest_exit
+        path: list[str] = []
+        curr: str | None = nearest_exit
         while curr is not None:
             path.append(curr)
             curr = predecessors[curr]
@@ -280,7 +279,7 @@ class StadiumGraph:
     # Analytics
     # ------------------------------------------------------------------
 
-    def get_crush_risk_zones(self) -> Dict:
+    def get_crush_risk_zones(self) -> dict:
         """
         Crowd Crush Prevention Algorithm (Feature #93).
 
@@ -296,8 +295,8 @@ class StadiumGraph:
             ``{level: "LOW"|"MODERATE"|"CRITICAL", zone_count: int,
                zones: List[dict], summary: str}``
         """
-        crush_zones: List[Dict] = []
-        seen: Set[Tuple[str, str]] = set()
+        crush_zones: list[dict] = []
+        seen: set[tuple[str, str]] = set()
 
         for src, neighbours in self.adj.items():
             for tgt, edge in neighbours.items():
@@ -357,7 +356,7 @@ class StadiumGraph:
 
     def get_bottlenecks(
         self, threshold: float = BOTTLENECK_OCCUPANCY_THRESHOLD
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """
         Return edges where the occupancy/capacity ratio exceeds *threshold*
         or which are explicitly blocked.
@@ -368,8 +367,8 @@ class StadiumGraph:
             Occupancy/capacity ratio above which a corridor is a bottleneck.
             Defaults to ``BOTTLENECK_OCCUPANCY_THRESHOLD``.
         """
-        bottlenecks: List[Dict] = []
-        seen: Set[Tuple[str, str]] = set()
+        bottlenecks: list[dict] = []
+        seen: set[tuple[str, str]] = set()
 
         for src, neighbours in self.adj.items():
             for tgt, edge in neighbours.items():

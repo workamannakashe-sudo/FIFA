@@ -21,9 +21,7 @@ import json
 import logging
 import time
 from contextlib import asynccontextmanager
-from copy import copy
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Set, Tuple
 
 from fastapi import Depends, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -137,15 +135,15 @@ def _ws_disconnect(websocket: WebSocket) -> None:
     logger.info("WS disconnected — %d active", len(_active_connections))
 
 
-async def _broadcast(payload: Dict) -> None:
+async def _broadcast(payload: dict) -> None:
     """
     Fan-out *payload* to all active WebSocket clients.
 
     Iterates over a snapshot copy so that disconnections during broadcast
     do not cause mutation-during-iteration errors.
     """
-    dead: List[WebSocket] = []
-    for ws in copy(_active_connections):
+    dead: list[WebSocket] = []
+    for ws in set(_active_connections):  # snapshot copy
         try:
             await ws.send_json(payload)
         except Exception:
@@ -158,7 +156,7 @@ async def _broadcast(payload: Dict) -> None:
 # Telemetry helper
 # ---------------------------------------------------------------------------
 
-def get_stadium_telemetry() -> Dict:
+def get_stadium_telemetry() -> dict:
     """
     Build the full stadium state payload for REST/WebSocket consumers.
 
@@ -177,8 +175,8 @@ def get_stadium_telemetry() -> Dict:
     if _telemetry_cache is not None:
         return _telemetry_cache
 
-    edges: List[Dict] = []
-    seen: Set[Tuple[str, str]] = set()
+    edges: list[dict] = []
+    seen: set[tuple[str, str]] = set()
     for src, neighbours in stadium_state.adj.items():
         for tgt, edge in neighbours.items():
             edge_id = (min(src, tgt), max(src, tgt))
@@ -201,7 +199,7 @@ def get_stadium_telemetry() -> Dict:
     seating_nodes = [
         n for n in stadium_state.nodes if n.startswith(SEATING_NODE_PREFIXES)
     ]
-    routing_plans: Dict[str, Dict] = {}
+    routing_plans: dict[str, dict] = {}
     for node in seating_nodes:
         path, cost = stadium_state.calculate_evacuation_routes(node)
         routing_plans[node] = {
@@ -324,7 +322,7 @@ class ChatMessage(BaseModel):
 
     message: str = Field(..., min_length=1, max_length=500)
     lang: str = Field("en", min_length=2, max_length=5, description="ISO 639-1 language code")
-    history: List[Dict] = Field(
+    history: list[dict] = Field(
         default_factory=list,
         description="Last N conversation turns [{role, text}]",
         max_length=10,
@@ -368,13 +366,29 @@ async def get_dashboard() -> HTMLResponse:
 
 
 @app.get("/api/status", summary="Current stadium telemetry snapshot")
-async def get_status() -> Dict:
+async def get_status() -> dict:
     """Return the cached stadium graph state (edges, routing plans, bottlenecks)."""
     return get_stadium_telemetry()
 
 
+@app.get("/api/health", summary="Service liveness check", tags=["Operations"])
+async def health_check() -> dict:
+    """
+    Lightweight liveness probe for load balancers and deployment health checks.
+
+    Returns ``{status: "ok", service: str, uptime_entries: int}``.
+    Always returns HTTP 200 as long as the process is alive.
+    """
+    return {
+        "status": "ok",
+        "service": "SafePass 2026",
+        "audit_entries": len(AUDIT_LOG),
+        "active_ws_connections": len(_active_connections),
+    }
+
+
 @app.get("/api/scenarios", summary="List available simulation scenarios")
-async def list_scenarios() -> List[Dict]:
+async def list_scenarios() -> list[dict]:
     """List all preloaded crowd scenarios available for demonstration."""
     return [
         {
@@ -388,7 +402,7 @@ async def list_scenarios() -> List[Dict]:
 
 
 @app.post("/api/scenarios/{scenario_name}", summary="Load a simulation scenario")
-async def load_scenario(scenario_name: str) -> Dict:
+async def load_scenario(scenario_name: str) -> dict:
     """
     Load a named crowd scenario into the routing engine and broadcast the
     updated state to all connected WebSocket clients.
@@ -415,7 +429,7 @@ async def load_scenario(scenario_name: str) -> Dict:
 
 
 @app.post("/api/update_occupancy", summary="Update corridor occupancy (sandbox)")
-async def update_occupancy(data: EdgeStateUpdate) -> Dict:
+async def update_occupancy(data: EdgeStateUpdate) -> dict:
     """Dynamically set the occupancy of a corridor for live congestion simulation."""
     if data.source not in stadium_state.nodes or data.target not in stadium_state.nodes:
         raise HTTPException(status_code=404, detail="One or both nodes not found.")
@@ -427,7 +441,7 @@ async def update_occupancy(data: EdgeStateUpdate) -> Dict:
 
 
 @app.post("/api/block_edge", summary="Block or unblock a corridor (sandbox)")
-async def block_edge(data: EdgeBlockUpdate) -> Dict:
+async def block_edge(data: EdgeBlockUpdate) -> dict:
     """Toggle the blocked state of a specific corridor for incident management."""
     if data.source not in stadium_state.nodes or data.target not in stadium_state.nodes:
         raise HTTPException(status_code=404, detail="One or both nodes not found.")
@@ -442,7 +456,7 @@ async def block_edge(data: EdgeBlockUpdate) -> Dict:
 async def get_announcement(
     zone: str = Query(..., max_length=60, description="Zone requesting evacuation instructions"),
     lang: str = Query("en", max_length=5, description="ISO 639-1 language code"),
-) -> Dict:
+) -> dict:
     """
     Compute the shortest evacuation route from *zone* and return a translated,
     screen-reader-friendly instruction string via Gemini AI (with offline fallback).
@@ -481,7 +495,7 @@ async def get_announcement(
 
 
 @app.post("/api/register_fan", summary="Register fan and receive personalised egress plan")
-async def register_fan(fan: FanRegistration) -> Dict:
+async def register_fan(fan: FanRegistration) -> dict:
     """
     Accept fan registration, apply XSS sanitisation, mask PII in logs,
     and return a personalised evacuation route.
@@ -519,7 +533,7 @@ async def register_fan(fan: FanRegistration) -> Dict:
 
 
 @app.get("/api/crush_risk", summary="Crowd crush risk assessment (Feature #93)")
-async def get_crush_risk() -> Dict:
+async def get_crush_risk() -> dict:
     """
     Analyse all corridors with the LWR fluid-dynamics model.
     Returns severity level (LOW / MODERATE / CRITICAL) and affected zones.
@@ -543,7 +557,7 @@ async def get_crush_risk() -> Dict:
     summary="AI incident triage classifier (Feature #44)",
     dependencies=[Depends(require_staff_key)],
 )
-async def triage_incident(report: IncidentReport) -> Dict:
+async def triage_incident(report: IncidentReport) -> dict:
     """
     Classify a free-text incident report using Gemini AI.
 
@@ -566,7 +580,7 @@ async def triage_incident(report: IncidentReport) -> Dict:
 
 
 @app.post("/api/chat", summary="RAG-powered fan chatbot (Feature #23)")
-async def chatbot(message: ChatMessage) -> Dict:
+async def chatbot(message: ChatMessage) -> dict:
     """
     Answer fan questions using Gemini with the stadium knowledge base as
     in-prompt RAG context.  Supports multilingual responses and conversation
@@ -586,7 +600,7 @@ async def chatbot(message: ChatMessage) -> Dict:
     summary="Emergency multi-level alert escalation (Feature #91)",
     dependencies=[Depends(require_staff_key)],
 )
-async def dispatch_alert(alert: AlertCommand) -> Dict:
+async def dispatch_alert(alert: AlertCommand) -> dict:
     """
     Dispatch a tiered emergency alert.
 
@@ -608,13 +622,13 @@ async def dispatch_alert(alert: AlertCommand) -> Dict:
             detail=f"Zone '{sanitized_zone}' not found in stadium graph.",
         )
 
-    level_labels = {
+    level_labels: dict[int, str] = {
         1: "APP_NOTIFICATION",
         2: "PA_AND_SMS_TRIGGER",
         3: "FULL_LOCKDOWN",
     }
     event_type = f"ALERT_L{alert.level}_{level_labels[alert.level]}"
-    lockdown_details: Dict = {}
+    lockdown_details: dict = {}
 
     if alert.level == 3 and sanitized_zone in stadium_state.nodes:
         stadium_state.set_node_blocked(sanitized_zone, True)
@@ -662,14 +676,14 @@ async def dispatch_alert(alert: AlertCommand) -> Dict:
 @app.get("/api/audit_log", summary="Retrieve tamper-evident audit log (Feature #99)")
 async def get_audit_log(
     limit: int = Query(50, ge=1, le=500, description="Maximum entries to return"),
-) -> Dict:
+) -> dict:
     """Return the most recent *limit* entries from the append-only audit chain."""
     recent = AUDIT_LOG[-limit:]
     return {"total_entries": len(AUDIT_LOG), "entries": recent}
 
 
 @app.get("/api/audit_verify", summary="Verify SHA-256 audit chain integrity")
-async def verify_audit_chain() -> Dict:
+async def verify_audit_chain() -> dict:
     """
     Re-compute the SHA-256 hash for every audit entry and verify the chain.
 

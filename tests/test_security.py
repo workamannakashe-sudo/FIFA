@@ -16,13 +16,26 @@ def test_input_sanitization():
     """Verify XSS and injection patterns are neutralized."""
     # XSS Script tag stripping
     assert "script" not in sanitize_input("Hello <script>alert('hack')</script> world")
-    
+
     # HTML tag escaping
     assert "&lt;div&gt;Test&lt;/div&gt;" in sanitize_input("<div>Test</div>")
-    
+
     # Event handler stripping
     assert "onerror" not in sanitize_input("<img src=x onerror=alert(1)>")
     assert "onload" not in sanitize_input("<body onload=calc()>")
+
+
+def test_input_sanitization_javascript_protocol():
+    """Verify javascript: protocol references are stripped by sanitize_input."""
+    result = sanitize_input("javascript:alert('xss')")
+    assert "javascript:" not in result.lower()
+
+
+def test_input_sanitization_non_string():
+    """Verify sanitize_input returns non-string inputs unchanged."""
+    assert sanitize_input(42) == 42
+    assert sanitize_input(None) is None
+    assert sanitize_input(3.14) == 3.14
 
 
 def test_pii_masking():
@@ -38,6 +51,18 @@ def test_pii_masking():
     # Ticket ID
     assert "TKT-1049-US" not in mask_pii_string("Ticket TKT-1049-US checked")
     assert "TKT-****-US" in mask_pii_string("Ticket TKT-1049-US checked")
+
+
+def test_pii_masking_non_string():
+    """Verify mask_pii_string returns non-string inputs unchanged."""
+    assert mask_pii_string(123) == 123
+    assert mask_pii_string(None) is None
+
+
+def test_pii_masking_clean_string():
+    """Verify mask_pii_string leaves strings without PII intact."""
+    clean = "No personal information here. Crowd density is high."
+    assert mask_pii_string(clean) == clean
 
 
 # ── Staff API Key Dependency Tests ───────────────────────────────────────────
@@ -57,6 +82,14 @@ async def test_require_staff_key_invalid():
         await require_staff_key(x_staff_api_key="wrong-key")
     assert exc_info.value.status_code == 403
     assert "Invalid or missing staff API key" in exc_info.value.detail
+
+
+@pytest.mark.asyncio
+async def test_require_staff_key_empty():
+    """Verify require_staff_key raises 403 for an empty key string."""
+    with pytest.raises(HTTPException) as exc_info:
+        await require_staff_key(x_staff_api_key="")
+    assert exc_info.value.status_code == 403
 
 
 # ── Feature #99 — Cryptographic Hash Chain Validation ────────────────────────
@@ -80,17 +113,17 @@ def _verify_chain(audit_log: list) -> dict:
     """Helper representing main.py audit chain integrity logic."""
     if not audit_log:
         return {"valid": True, "tampered_entries": []}
-    
+
     tampered = []
     prev_hash = AUDIT_GENESIS_HASH
-    
+
     for entry in audit_log:
         payload_str = f"{prev_hash}|{entry['index']}|{entry['event_type']}|{json.dumps(entry['data'], sort_keys=True)}"
         expected = hashlib.sha256(payload_str.encode()).hexdigest()
         if entry["hash"] != expected or entry["prev_hash"] != prev_hash:
             tampered.append(entry["index"])
         prev_hash = entry["hash"]
-    
+
     return {"valid": len(tampered) == 0, "tampered_entries": tampered}
 
 
@@ -113,13 +146,32 @@ def test_audit_chain_tamper():
         entry = _make_entry(i, f"EVENT_{i}", {"val": i}, prev)
         log.append(entry)
         prev = entry["hash"]
-        
+
     # Attack: Retroactive tampering of event 1 data payload
     log[1]["data"]["val"] = 9999
-    
+
     result = _verify_chain(log)
     assert result["valid"] is False
     assert 1 in result["tampered_entries"]
+
+
+def test_audit_chain_multi_valid():
+    """Verify a properly constructed multi-entry chain passes validation."""
+    log = []
+    prev = AUDIT_GENESIS_HASH
+    events = [
+        ("SYSTEM_START", {"version": "2.0.0"}),
+        ("SCENARIO_LOAD", {"scenario": "bottleneck"}),
+        ("INCIDENT_TRIAGE", {"category": "Medical", "severity": 5}),
+    ]
+    for i, (event_type, data) in enumerate(events):
+        entry = _make_entry(i, event_type, data, prev)
+        log.append(entry)
+        prev = entry["hash"]
+
+    result = _verify_chain(log)
+    assert result["valid"] is True
+    assert result["tampered_entries"] == []
 
 
 # ── Feature #44 — Offline Triage Classifier Tests ─────────────────────────────
@@ -148,3 +200,12 @@ def test_offline_triage_returns_recommended_action():
     result = _offline_triage("Crowd is surging and pushing in the east concourse")
     assert "recommended_action" in result
     assert len(result["recommended_action"]) > 10
+
+
+def test_offline_triage_default_category():
+    """Verify _offline_triage defaults to Crowd when no keywords match."""
+    from app.ai_helper import _offline_triage
+    result = _offline_triage("Something unusual happened somewhere in the stadium")
+    assert result["category"] == "Crowd"
+    assert "recommended_action" in result
+    assert result["confidence"] == "offline-fallback"
